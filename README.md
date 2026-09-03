@@ -4,7 +4,7 @@ This readme follows the template created by Social Science Data Editors. See sec
 
 ## Overview
 
-The code in this replication package generates the samples datasets used to produce the results results shown on the interactive websites OpportunityMap.nl (for the Dutch version see KansenKaart.nl) and OpportunityGap.nl (for the Dutch version see KansenKloof.nl).
+The code in this replication package generates the dataasets used to produce the results results shown on the interactive websites OpportunityMap.nl (for the Dutch version see KansenKaart.nl) and OpportunityGap.nl (for the Dutch version see KansenKloof.nl).
 
 ## What are OpportunityMap NL and OpportunityGap NL?
 
