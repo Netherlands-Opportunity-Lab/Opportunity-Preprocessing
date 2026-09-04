@@ -31,7 +31,7 @@ sample_size <- read_rds(file.path(loc$scratch_folder, "02_sample_size.rds"))
 
 
 # load function for recording number of missings, negatives, not merged
-source("src/function_kansenkaart_preprocessing.R")
+source("src/P_2_0_function_kansenkaart_preprocessing.R")
 
 
 # create a table with incomes at the cpi_base_year level
