@@ -26,7 +26,12 @@ Researchers interested in obtaining access to the data employed in this analysis
 
 ### License for Code
 
-The code is licensed under a GPL v3 license. See LICENSE.txt for details.
+This repository uses two licenses:
+
+- **Code** (scripts, notebooks, and other source files) is licensed under the [MIT License](LICENSE).
+- **Results** (data outputs, figures, and other generated content) are licensed under [CC BY 4.0](LICENSE-RESULTS).
+
+See the respective license files for full terms.
 
 Over and above the legal restrictions imposed by this license, if you use this software for an academic publication then you are obliged to provide proper attribution. This can be to this code directly,
 
