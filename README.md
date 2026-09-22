@@ -109,6 +109,7 @@ The perinatal cohort comprises approximately 1.5 million Dutch children who were
 
 -   c00_sga (small-for-gestational age): Indicates children with a birth weight below the 10th percentile adjusted for gestational age and gender, according to the [Hoftiezer curve](https://github.com/sodascience/kansenkaart_preprocessing/blob/cbs_updated/resources/Hoftiezer_Geboortegewicht%20curves.xlsx).
 -   c00_preterm_birth: Indicates children with a gestational age before 37 completed weeks of gestation.
+-   c00_total_health_costs: Represents the total health care costs covered by the Health Insurance Act for newborns (only sample b).
 
 #### 2. Child mortality Sample
 
@@ -117,6 +118,7 @@ The child mortality cohort comprises approximately 1.5 million Dutch children wh
 -   c00_perinatal_mortality: Represents the death of children that occurs between 24 completed weeks of gestation and up to 7 days after birth.
 -   c00_neonatal_mortality: Represents the death of children that occurs between 24 completed weeks of gestation and up to 28 days after birth.
 -   c00_infant_mortality: Represents the death of children that occurs between 24 completed weeks of gestation and up to 365 days after birth.
+-   c00_total_health_costs: Represents the total health care costs covered by the Health Insurance Act for newborns (only sample b).
 
 #### 3. Prim8 sample
 
