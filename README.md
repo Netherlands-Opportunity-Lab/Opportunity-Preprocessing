@@ -337,11 +337,13 @@ Here the code of this repository is described. There are 39 files in total: conf
 
 ### **Sample Creation**
 
-To create a sample dataset use `create_cohort_data.R`, change the desired input configuration to one of the following:
+To create a sample dataset use `create_sample_data.R`, change the desired input configuration to one of the following:
 
--   `config/newborns.yml`
+-   `config/newborns_a_perinatal.yml` or `config/newborns_b_perinatal.yml`
 
--   `config/prim8.yml`
+-   `config/newborns_a_mortality.yml` or `config/newborns_b_mortality.yml`
+
+-   `config/prim8a.yml` or `config/prim8b.yml`
 
 -   `config/age16.yml`
 
