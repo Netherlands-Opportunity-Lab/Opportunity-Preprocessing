@@ -1,0 +1,75 @@
+default:
+  data_preparation:
+    # The name of the cohort
+    cohort_name: "prim8_b"
+    
+    # Child birth date filters the cohort by age
+    child_birth_date_min: "01/01/2009"
+    child_birth_date_max: "31/12/2011"
+    
+    # The cohort is allowed to be unregistered for this many days 
+    # in this period
+    child_live_slack_days: 31
+    
+    # Should we use the address registration of a child on a specific age
+    childhood_home_age: 10
+    
+   # Postal code link to homes will be considered on this target date
+    postcode_target_date: "31/12/2024"
+    # Neighbourhood geo link to homes will be considered on this target date
+    gwb_target_date: "31/12/2024"
+    # Corop geo link to homes will be considered on this target date
+    corop_target_date: "31/12/2023"
+    
+    # Income will be deflated to cpi_base_year euros.
+    cpi_base_year: 2024
+    
+    # Parent income year range
+    parent_income_year_min: 2015
+    parent_income_year_max: 2019
+    
+    # Parent wealth year range
+    parent_wealth_year_min: 2019
+    parent_wealth_year_max: 2022
+    
+    # The parents education will be added to to the cohort
+    education_parents: true
+    
+    # primary school year range, start of the academic year in which child took the cito test
+    primary_school_year_min: 2020
+    primary_school_year_max: 2024
+
+    # Child outome year range
+    child_outcome_year_min: 2021
+    child_outcome_year_max: 2025
+
+    #health outcomes year range, one year before the calendar year in which child took the cito test
+    health_year_min: 2020
+    health_year_max: 2024
+    
+    
+  file_locations:
+    # The data folder is the root folder of the cbs microdata tables
+    data_folder: "G:/"
+    # The scratch folder is used to write intermediate output
+    scratch_folder: "scratch/prim8_b"
+    
+    # path to the cbs microdata
+    gba_data: "Bevolking/GBAPERSOONTAB/2024/GBAPERSOON2024TABV3.sav"
+    gbaao_data: "Bevolking/GBAADRESOBJECTBUS/GBAADRESOBJECT2024BUSV1.sav"
+    kind_data: "Bevolking/KINDOUDERTAB/KINDOUDER2025TABV2.sav"
+    postcode_data: "BouwenWonen/VSLPOSTCODEBUS/VSLPOSTCODEBUSV2026031.sav"
+    vslgwb_data: "BouwenWonen/VSLGWBTAB/VSLGWB2025TAB03V1.sav"
+    woon_data: "BouwenWonen/LEVCYCLWOONNIETWOONBUS/LEVCYCLWOONNIETWOONBUSV2025123.sav"
+    household_data: "Bevolking/GBAHUISHOUDENSBUS/GBAHUISHOUDENS2024BUSV1.sav"
+
+
+    # resources
+    cpi_index_data: "resources/Consumentenprijzen__prijsindex_2015_100_14112022_221558.xlsx"
+    migration_data: "K:/Utilities/Code_Listings/SSBreferentiebestanden/LANDAKTUEELREFV15.SAV"
+    corop_data: "K:/Utilities/HULPbestanden/GebiedeninNederland/GIN"
+    advice_data: "resources/vo_advisering.xlsx"
+    advice_data_sheet: "table"
+    opleiding_data: "K:/Utilities/Code_Listings/SSBreferentiebestanden/OPLEIDINGSNRREFV36.SAV"
+    cto_data: "K:/Utilities/Code_Listings/SSBreferentiebestanden/CTOREFV13.SAV"
+
