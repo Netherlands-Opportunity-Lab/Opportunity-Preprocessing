@@ -59,7 +59,7 @@ default:
     # The data folder is the root folder of the cbs microdata tables
     data_folder: "G:/"
     # The scratch folder is used to write intermediate output
-    scratch_folder: "scratch/prim8_a"
+    scratch_folder: "scratch/prim8_a_sql"
     
     # path to the cbs microdata
     gba_data: "Bevolking/GBAPERSOONTAB/2024/geconverteerde data/GBAPERSOON2024TABV3.db"
