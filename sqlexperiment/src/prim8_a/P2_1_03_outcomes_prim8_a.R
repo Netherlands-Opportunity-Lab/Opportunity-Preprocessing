@@ -3,9 +3,11 @@
 # 3. Outcome creation.
 #   - Adding primary school outcomes to the cohort.
 #
-# SQLite version: reads the converted .db files via read_db() (src/sql_helpers.R)
-# instead of read_sav(). Only the rows that are needed leave the database; all
-# processing after the read is unchanged. Changes are marked with [SQL].
+# SQLite version: the files that are available as converted .db (GBAPERSOON,
+# GBAADRESOBJECT, KINDOUDER, GBAHUISHOUDENS, VSLPOSTCODE, VSLGWB, LEVCYCLWOONNIETWOON)
+# are read with read_db() (src/sql_helpers.R): only the rows that are needed leave
+# the database. All other files are still read with read_sav(), exactly as before.
+# Changes are marked with [SQL].
 #
 # (c) ODISSEI Social Data Science team 2026
 
@@ -36,10 +38,14 @@ class_cohort_dat <- bind_rows(
 #### CLASSROOM COMPOSITION AND OTHER PRIMARY SCHOOL OUTCOMES ####
 
 # function to get latest inschrwpo version of specified year
-# [SQL] file finders now look for the latest .db (in the 'geconverteerde data' folder)
 get_inschrwpo_filename <- function(year) {
-  find_latest_db(file.path(loc$data_folder, "Onderwijs/INSCHRWPOTAB"),
-                 paste0("INSCHRWPOTAB", year, "V[0-9]+\\.db$"))
+  fl <- list.files(
+    path = file.path(loc$data_folder, "Onderwijs/INSCHRWPOTAB"),
+    pattern = paste0("INSCHRWPOTAB", year, "V[0-9]+(?i)(.sav)"), 
+    full.names = TRUE
+  )
+  # return only the latest version
+  sort(fl, decreasing = TRUE)[1]
 }
 
 
@@ -52,13 +58,11 @@ school_dat <- tibble(RINPERSOONS = factor(), RINPERSOON = character(), WPOLEERJA
 for (year in seq(as.integer(cfg$primary_school_year_min), as.integer(cfg$primary_school_year_max))) {
   school_dat <- 
     # read file from disk
-    # [SQL] the cohort filter below is now also done inside SQLite
-    read_db(get_inschrwpo_filename(year), 
-            cols = c("RINPERSOONS", "RINPERSOON", "WPOLEERJAAR", "WPOGROEPSGROOTTE",
-                     "WPOTOETSADVIES","WPOADVIESVO", "WPOADVIESHERZ", 
-                     "WPOREKENEN", "WPOTAALLV", "WPOTAALTV",
-                     "WPOBRIN_crypt", "WPOBRINVEST", "WPOTYPEPO"),
-            filter_in = list(RINPERSOON = cohort_dat$RINPERSOON)) %>% 
+    read_sav(get_inschrwpo_filename(year), 
+             col_select = c("RINPERSOONS", "RINPERSOON", "WPOLEERJAAR", "WPOGROEPSGROOTTE",
+                            "WPOTOETSADVIES","WPOADVIESVO", "WPOADVIESHERZ", 
+                            "WPOREKENEN", "WPOTAALLV", "WPOTAALTV",
+                            "WPOBRIN_crypt", "WPOBRINVEST", "WPOTYPEPO")) %>% 
     mutate(RINPERSOONS = as_factor(RINPERSOONS, levels = "value")) %>%
     # select only children that are in the cohort
     filter(RINPERSOON %in% cohort_dat$RINPERSOON) %>% 
@@ -509,15 +513,13 @@ cpi_tab <- cpi_tab %>%
 
 # function to get latest inschrwpo version of specified year
 get_health_filename <- function(year) {
-  find_latest_db(file.path(loc$data_folder, "GezondheidWelzijn/ZVWZORGKOSTENTAB", year),
-                 paste0("ZVWZORGKOSTEN", year, "TABV[0-9]+\\.db$"))
-}
-
-# [SQL] read only the children in the cohort (same filter as below); cost columns
-#       may be stored as TEXT in the .db, so they are converted to numeric
-read_health <- function(path, cols) {
-  read_db(path, cols = cols, filter_in = list(RINPERSOON = cohort_dat$RINPERSOON),
-          numeric = grep("^ZVWK|^NOPZVWK", cols, value = TRUE))
+  fl <- list.files(
+    path = file.path(loc$data_folder, "GezondheidWelzijn/ZVWZORGKOSTENTAB", year),
+    pattern = paste0("ZVWZORGKOSTEN", year, "TABV[0-9]+(?i)(.sav)"),
+    full.names = TRUE
+  )
+  # return only the latest version
+  sort(fl, decreasing = TRUE)[1]
 }
 
 
@@ -526,34 +528,34 @@ health_dat <- tibble(RINPERSOONS = factor(), RINPERSOON = character(),
 for (year in seq(as.integer(cfg$health_year_min), as.integer(cfg$health_year_max))) {
 
   if (year == 2014) {
-    health_tab <- read_health(get_health_filename(2014),
-                              c("RINPERSOONS", "RINPERSOON", "ZVWKHUISARTS", "ZVWKGEBOORTEZORG",
-                                "ZVWKFARMACIE", "ZVWKMONDZORG", "ZVWKZIEKENHUIS",
-                                "ZVWKPARAMEDISCH", "ZVWKHULPMIDDEL", "ZVWKZIEKENVERVOER",
-                                "ZVWKBUITENLAND", "ZVWKOVERIG", "ZVWKGERIATRISCH",
-                                "ZVWKWYKVERPLEGING", "NOPZVWKHUISARTSINSCHRIJF")) %>%
+    health_tab <- read_sav(get_health_filename(2014),
+                           col_select = c("RINPERSOONS", "RINPERSOON", "ZVWKHUISARTS", "ZVWKGEBOORTEZORG",
+                                          "ZVWKFARMACIE", "ZVWKMONDZORG", "ZVWKZIEKENHUIS",
+                                          "ZVWKPARAMEDISCH", "ZVWKHULPMIDDEL", "ZVWKZIEKENVERVOER",
+                                          "ZVWKBUITENLAND", "ZVWKOVERIG", "ZVWKGERIATRISCH",
+                                          "ZVWKWYKVERPLEGING", "NOPZVWKHUISARTSINSCHRIJF")) %>%
       mutate(RINPERSOONS = as_factor(RINPERSOONS, levels = "values")) %>%
       # select only children
       filter(RINPERSOON %in% cohort_dat$RINPERSOON)
 
   } else if (year == 2015 | year == 2016 | year == 2017) {
-    health_tab <- read_health(get_health_filename(year),
-                              c("RINPERSOONS", "RINPERSOON", "ZVWKHUISARTS", "ZVWKMULTIDISC",
-                                "ZVWKFARMACIE", "ZVWKMONDZORG", "ZVWKZIEKENHUIS", "ZVWKGEBOORTEZORG",
-                                "ZVWKPARAMEDISCH", "ZVWKHULPMIDDEL", "ZVWKZIEKENVERVOER",
-                                "ZVWKBUITENLAND", "ZVWKOVERIG", "ZVWKGERIATRISCH",
-                                "ZVWKWYKVERPLEGING", "NOPZVWKHUISARTSINSCHRIJF")) %>%
+    health_tab <- read_sav(get_health_filename(year),
+                           col_select = c("RINPERSOONS", "RINPERSOON", "ZVWKHUISARTS", "ZVWKMULTIDISC",
+                                          "ZVWKFARMACIE", "ZVWKMONDZORG", "ZVWKZIEKENHUIS", "ZVWKGEBOORTEZORG",
+                                          "ZVWKPARAMEDISCH", "ZVWKHULPMIDDEL", "ZVWKZIEKENVERVOER",
+                                          "ZVWKBUITENLAND", "ZVWKOVERIG", "ZVWKGERIATRISCH",
+                                          "ZVWKWYKVERPLEGING", "NOPZVWKHUISARTSINSCHRIJF")) %>%
       mutate(RINPERSOONS = as_factor(RINPERSOONS, levels = "values")) %>%
       # select only children
       filter(RINPERSOON %in% cohort_dat$RINPERSOON)
 
   } else if (year == 2018) {
-    health_tab <- read_health(get_health_filename(year),
-                              c("RINPERSOONS", "RINPERSOON", "ZVWKHUISARTS", "ZVWKMULTIDISC",
-                                "ZVWKFARMACIE", "ZVWKMONDZORG", "ZVWKZIEKENHUIS", "ZVWKEERSTELIJNSVERBLIJF",
-                                "ZVWKPARAMEDISCH", "ZVWKHULPMIDDEL", "ZVWKZIEKENVERVOER",
-                                "ZVWKBUITENLAND", "ZVWKOVERIG", "ZVWKGERIATRISCH", "ZVWKGEBOORTEZORG",
-                                "ZVWKWYKVERPLEGING", "NOPZVWKHUISARTSINSCHRIJF")) %>%
+    health_tab <- read_sav(get_health_filename(year),
+                           col_select = c("RINPERSOONS", "RINPERSOON", "ZVWKHUISARTS", "ZVWKMULTIDISC",
+                                          "ZVWKFARMACIE", "ZVWKMONDZORG", "ZVWKZIEKENHUIS", "ZVWKEERSTELIJNSVERBLIJF",
+                                          "ZVWKPARAMEDISCH", "ZVWKHULPMIDDEL", "ZVWKZIEKENVERVOER",
+                                          "ZVWKBUITENLAND", "ZVWKOVERIG", "ZVWKGERIATRISCH", "ZVWKGEBOORTEZORG",
+                                          "ZVWKWYKVERPLEGING", "NOPZVWKHUISARTSINSCHRIJF")) %>%
       mutate(RINPERSOONS = as_factor(RINPERSOONS, levels = "values")) %>%
       # select only children
       filter(RINPERSOON %in% cohort_dat$RINPERSOON)
@@ -602,8 +604,13 @@ cohort_dat <- cohort_dat %>%
 
 # function to get latest jgdbeschermbus version of specified year
 get_protection_filename <- function(year) {
-  find_latest_db(file.path(loc$data_folder, "VeiligheidRecht/JGDBESCHERMBUS"),
-                 paste0("JGDBESCHERM", year, "BUSV[0-9]+\\.db$"))
+  fl <- list.files(
+    path = file.path(loc$data_folder, "VeiligheidRecht/JGDBESCHERMBUS"),
+    pattern = paste0("JGDBESCHERM", year, "BUSV[0-9]+(?i)(.sav)"),
+    full.names = TRUE
+  )
+  # return only the latest version
+  sort(fl, decreasing = TRUE)[1]
 }
 
 
@@ -612,9 +619,8 @@ protection_dat <- tibble(RINPERSOONS = factor(), RINPERSOON = character(),
 for (year in seq(2015, as.integer(cfg$child_outcome_year_max))) {
 
   protection_dat <-
-    # [SQL] only children in the cohort (protection_dat is only left-joined to the cohort)
-    read_db(get_protection_filename(year), cols = c("RINPERSOONS", "RINPERSOON"),
-            filter_in = list(RINPERSOON = cohort_dat$RINPERSOON)) %>%
+    read_sav(get_protection_filename(year),
+             col_select = c("RINPERSOONS", "RINPERSOON")) %>%
     mutate(RINPERSOONS = as_factor(RINPERSOONS, levels = "values"),
            year = year) %>%
     # add to protection dat
@@ -623,8 +629,8 @@ for (year in seq(2015, as.integer(cfg$child_outcome_year_max))) {
 
 # use protection data 2015 dat to 2014 year since we do not have protection data 2014
 protection_dat <-
-  read_db(get_protection_filename(2015), cols = c("RINPERSOONS", "RINPERSOON"),
-          filter_in = list(RINPERSOON = cohort_dat$RINPERSOON)) %>%  # [SQL]
+  read_sav(get_protection_filename(2015),
+           col_select = c("RINPERSOONS", "RINPERSOON")) %>%
   mutate(RINPERSOONS = as_factor(RINPERSOONS, levels = "values"),
          year = 2014) %>%
   # add to protection dat
@@ -728,8 +734,13 @@ rm(woon_dat)
 
 # function to get latest eigendom version of specified year
 get_eigendom_filename <- function(year) {
-  find_latest_db(file.path(loc$data_folder, "BouwenWonen/EIGENDOMTAB"),
-                 paste0("EIGENDOM", year, "TABV[0-9]+\\.db$"))
+  fl <- list.files(
+    path = file.path(loc$data_folder, "BouwenWonen/EIGENDOMTAB"),
+    pattern = paste0("EIGENDOM", year, "TABV[0-9]+(?i)(.sav)"),
+    full.names = TRUE
+  )
+  # return only the latest version
+  sort(fl, decreasing = TRUE)[1]
 }
 
 
@@ -737,10 +748,9 @@ household_members <- tibble(SOORTOBJECTNUMMER = factor(), RINOBJECTNUMMER = char
                             AantalBewoners = double(), year = integer())
 for (year in seq(as.integer(cfg$primary_school_year_min), as.integer(cfg$primary_school_year_max))) {
 
-  # [SQL] only the dwellings of the cohort (household_members is only left-joined to those)
-  household_members <- read_db(get_eigendom_filename(year),
-                               cols = c("SOORTOBJECTNUMMER", "RINOBJECTNUMMER", "AantalBewoners"),
-                               filter_in = list(RINOBJECTNUMMER = cohort_dat$RINOBJECTNUMMER)) %>%
+  household_members <- read_sav(get_eigendom_filename(year),
+                                col_select = c("SOORTOBJECTNUMMER", "RINOBJECTNUMMER",
+                                               "AantalBewoners")) %>%
     mutate(SOORTOBJECTNUMMER = as_factor(SOORTOBJECTNUMMER, levels = "values"),
            AantalBewoners = as.numeric(AantalBewoners),
            year = year) %>%

@@ -67,17 +67,17 @@ default:
     kind_data: "Bevolking/KINDOUDERTAB/geconverteerde data/KINDOUDER2025TABV2.db"
     postcode_data: "BouwenWonen/VSLPOSTCODEBUS/geconverteerde data/VSLPOSTCODEBUSV2026031.db"
     vslgwb_data: "BouwenWonen/VSLGWBTAB/geconverteerde data/VSLGWB2025TAB03V1.db"
-    woon_data: "BouwenWonen/LEVCYCLWOONNIETWOONBUS//geconverteerde data/LEVCYCLWOONNIETWOONBUSV2025123.db"
+    woon_data: "BouwenWonen/LEVCYCLWOONNIETWOONBUS/geconverteerde data/LEVCYCLWOONNIETWOONBUSV2025123.db"
     household_data: "Bevolking/GBAHUISHOUDENSBUS/geconverteerde data/GBAHUISHOUDENS2024BUSV1.db"
 
 
     # resources
     cpi_index_data: "resources/Consumentenprijzen__prijsindex_2015_100_14112022_221558.xlsx"
-    migration_data: "K:/Utilities/Code_Listings/SSBreferentiebestanden/LANDAKTUEELREFV15.db"
+    migration_data: "K:/Utilities/Code_Listings/SSBreferentiebestanden/LANDAKTUEELREFV15.SAV"
     corop_data: "K:/Utilities/HULPbestanden/GebiedeninNederland/GIN"
     advice_data: "resources/vo_advisering.xlsx"
     advice_data_sheet: "table"
-    opleiding_data: "K:/Utilities/Code_Listings/SSBreferentiebestanden/OPLEIDINGSNRREFV36.db"
-    cto_data: "K:/Utilities/Code_Listings/SSBreferentiebestanden/CTOREFV13.db"
+    opleiding_data: "K:/Utilities/Code_Listings/SSBreferentiebestanden/OPLEIDINGSNRREFV36.SAV"
+    cto_data: "K:/Utilities/Code_Listings/SSBreferentiebestanden/CTOREFV13.SAV"
   
 

@@ -5,9 +5,11 @@
 #    - Adding migration background information to the cohort.
 #    - Writing `scratch/02_predictor.rds`
 #
-# SQLite version: reads the converted .db files via read_db() (src/sql_helpers.R)
-# instead of read_sav(). Only the rows that are needed leave the database; all
-# processing after the read is unchanged. Changes are marked with [SQL].
+# SQLite version: the files that are available as converted .db (GBAPERSOON,
+# GBAADRESOBJECT, KINDOUDER, GBAHUISHOUDENS, VSLPOSTCODE, VSLGWB, LEVCYCLWOONNIETWOON)
+# are read with read_db() (src/sql_helpers.R): only the rows that are needed leave
+# the database. All other files are still read with read_sav(), exactly as before.
+# Changes are marked with [SQL].
 #
 # (c) ODISSEI Social Data Science team 2025
 
@@ -154,17 +156,30 @@ sample_size <- sample_size %>%
 #### PARENT INCOME ####
 
 # get income data from each requested year into single data frame
-# [SQL] file finders now look for the latest .db (in the 'geconverteerde data' folder)
 get_ipi_filename <- function(year) {
   # function to get latest ipi version of specified year
-  find_latest_db(file.path(loc$data_folder, "InkomenBestedingen/INTEGRAAL PERSOONLIJK INKOMEN", year),
-                 paste0("PERSOONINK", year, "TABV[0-9]+\\.db$"))
+  # get all ipi files with the specified year
+  fl <- list.files(
+    path = file.path(loc$data_folder, "InkomenBestedingen/INTEGRAAL PERSOONLIJK INKOMEN", year),
+    pattern = paste0("PERSOONINK", year, "TABV[0-9]+\\.sav"), 
+    full.names = TRUE,
+    ignore.case = TRUE
+  )
+  # return only the latest version
+  sort(fl, decreasing = TRUE)[1]
 }
 
 get_inpa_filename <- function(year) {
   # function to get latest inpa version of specified year
-  find_latest_db(file.path(loc$data_folder, "InkomenBestedingen/INPATAB"),
-                 paste0("INPA", year, "TABV[0-9]+\\.db$"))
+  # get all inpa files with the specified year
+  fl <- list.files(
+    path = file.path(loc$data_folder, "InkomenBestedingen/INPATAB"),
+    pattern = paste0("INPA", year, "TABV[0-9]+\\.sav"), 
+    full.names = TRUE,
+    ignore.case = TRUE
+  )
+  # return only the latest version
+  sort(fl, decreasing = TRUE)[1]
 }
 
 parents <- c(cohort_dat$RINPERSOONMa, cohort_dat$RINPERSOONSMa, 
@@ -177,9 +192,7 @@ for (year in seq(as.integer(cfg$parent_income_year_min), as.integer(cfg$parent_i
     # use IPI tab
     income_parents <- 
       # read file from disk
-      # [SQL] only the parents are read (same filter as below)
-      read_db(get_ipi_filename(year), cols = c("RINPERSOONS", "RINPERSOON", "PERSBRUT"),
-              filter_in = list(RINPERSOON = parents), numeric = "PERSBRUT") %>% 
+      read_sav(get_ipi_filename(year), col_select = c("RINPERSOONS", "RINPERSOON", "PERSBRUT")) %>% 
       rename(income = PERSBRUT) %>% 
       mutate(RINPERSOONS = as_factor(RINPERSOONS, levels = "value")) %>%
       # select only incomes of parents
@@ -192,9 +205,7 @@ for (year in seq(as.integer(cfg$parent_income_year_min), as.integer(cfg$parent_i
     # use INPA tab
     income_parents <- 
       # read file from disk
-      # [SQL] only the parents are read (same filter as below)
-      read_db(get_inpa_filename(year), cols = c("RINPERSOONS", "RINPERSOON", "INPPERSBRUT"),
-              filter_in = list(RINPERSOON = parents), numeric = "INPPERSBRUT") %>% 
+      read_sav(get_inpa_filename(year), col_select = c("RINPERSOONS", "RINPERSOON", "INPPERSBRUT")) %>% 
       rename(income = INPPERSBRUT) %>% 
       mutate(RINPERSOONS = as_factor(RINPERSOONS, levels = "value")) %>%
       # select only incomes of parents
@@ -295,22 +306,37 @@ cohort_dat <- cohort_dat %>%
 # get wealth data from each requested year into single data frame
 get_veh_filename <- function(year) {
   # function to get latest version of specified year
-  find_latest_db(file.path(loc$data_folder, "InkomenBestedingen/VEHTAB"),
-                 paste0("VEH", year, "TAB.*\\.db$"))
+  fl <- list.files(
+    path = file.path(loc$data_folder, "InkomenBestedingen/VEHTAB"),
+    pattern = paste0("VEH", year, "TAB"),
+    full.names = TRUE
+  )
+  # return only the latest version
+  sort(fl, decreasing = TRUE)[1]
 }
 
 
 get_koppelpersoon_filename <- function(year) {
   # function to get latest version of specified year
-  find_latest_db(file.path(loc$data_folder, "InkomenBestedingen/INHATAB"),
-                 paste0("KOPPELPERSOONHUISHOUDEN", year, ".*\\.db$"))
+  fl <- list.files(
+    path = file.path(loc$data_folder, "InkomenBestedingen/INHATAB"),
+    pattern = paste0("KOPPELPERSOONHUISHOUDEN", year),
+    full.names = TRUE
+  )
+  # return only the latest version
+  sort(fl, decreasing = TRUE)[1]
 }
 
 
 get_koppeltabel_filename <- function(year) {
   # function to get latest version of specified year
-  find_latest_db(file.path(loc$data_folder, "InkomenBestedingen/VEHTAB"),
-                 paste0("KOPPELTABEL", year, ".*\\.db$"))
+  fl <- list.files(
+    path = file.path(loc$data_folder, "InkomenBestedingen/VEHTAB"),
+    pattern = paste0("KOPPELTABEL", year),
+    full.names = TRUE
+  )
+  # return only the latest version
+  sort(fl, decreasing = TRUE)[1]
 }
 
 
@@ -328,7 +354,7 @@ for (year in seq(as.integer(cfg$parent_wealth_year_min), as.integer(cfg$parent_w
   if (year <= 2010) {
     
     # load koppel data person to household
-    koppel_hh <- read_db(get_koppeltabel_filename(year), filter_in = list(RINPERSOON = parents)) %>%  # [SQL]
+    koppel_hh <- read_sav(get_koppeltabel_filename(year)) %>%
       # select only incomes of parents
       filter(RINPERSOON %in% parents) %>% 
       mutate(RINPERSOONSHKW = as_factor(RINPERSOONSHKW, levels = "value"), 
@@ -337,7 +363,7 @@ for (year in seq(as.integer(cfg$parent_wealth_year_min), as.integer(cfg$parent_w
   } else {
     
     # load koppel data person to household
-    koppel_hh <- read_db(get_koppelpersoon_filename(year), filter_in = list(RINPERSOON = parents)) %>%  # [SQL]
+    koppel_hh <- read_sav(get_koppelpersoon_filename(year)) %>%
       # select only incomes of parents
       filter(RINPERSOON %in% parents) %>% 
       mutate(RINPERSOONSHKW = as_factor(RINPERSOONSHKW, levels = "value"), 
@@ -347,9 +373,8 @@ for (year in seq(as.integer(cfg$parent_wealth_year_min), as.integer(cfg$parent_w
   # use VEH tab
   veh_parents <-
     # read file from disk
-    # [SQL] only households of the parents (the inner join with koppel_hh drops all others)
-    read_db(get_veh_filename(year), cols = c("RINPERSOONSHKW", "RINPERSOONHKW", "VEHW1000VERH"),
-            filter_in = list(RINPERSOONHKW = koppel_hh$RINPERSOONHKW), numeric = "VEHW1000VERH") %>%
+    read_sav(get_veh_filename(year), col_select = c("RINPERSOONSHKW", "RINPERSOONHKW",
+                                                    "VEHW1000VERH")) %>%
     rename(wealth = VEHW1000VERH) %>%
     mutate(RINPERSOONSHKW = as_factor(RINPERSOONSHKW, levels = "value"), 
            year = year) %>%
@@ -630,15 +655,22 @@ rm(household_dat, hh_tab)
 #### EDUCATION PARENTS ####
 
 get_hoogstopl_filename <- function(year) {
-  # get the latest HOOGSTEOPLTAB .db file of the specified year
-  find_latest_db(file.path(loc$data_folder, "Onderwijs/HOOGSTEOPLTAB", year), "\\.db$")
+  # get all HOOGSTEOPLTAB files with the specified year
+  fl <- list.files(
+    path = file.path(loc$data_folder, "Onderwijs/HOOGSTEOPLTAB", year),
+    pattern = "(?i)(.sav)", 
+    full.names = TRUE,
+    ignore.case = TRUE
+  )
+  # return only the latest version
+  sort(fl, decreasing = TRUE)[1]
 }
 
 
 # load data for linking education numbers to education levels
-edu_link <- read_db(loc$opleiding_data, cols = c("OPLNR", "CTO2021V")) %>%  # [SQL] small reference files
+edu_link <- read_sav(loc$opleiding_data) %>%
   select(OPLNR, CTO2021V) %>%
-  left_join(read_db(loc$cto_data, cols = c("CTO", "OPLNIVSOI2016AGG4HB")) %>%
+  left_join(read_sav(loc$cto_data) %>%
               select(CTO, OPLNIVSOI2016AGG4HB), by = c("CTO2021V" = "CTO")) 
 
 parents_education <- tibble(RINPERSOONS = factor(), RINPERSOON = character(),
@@ -647,10 +679,9 @@ for (year in seq((as.integer(format(dmy(cfg$child_birth_date_min), "%Y")) + cfg$
                  (as.integer(format(dmy(cfg$child_birth_date_max), "%Y")) + cfg$childhood_home_age))) {
   
   if (year < 2013) {
-    # [SQL] only the parents (education is only left-joined on the parent ids)
-    parents_education <- read_db(get_hoogstopl_filename(year), 
-                                 cols = c("RINPERSOONS", "RINPERSOON", "OPLNRHB"),
-                                 filter_in = list(RINPERSOON = c(cohort_dat$RINPERSOONpa, cohort_dat$RINPERSOONMa))) %>%
+    parents_education <- read_sav(get_hoogstopl_filename(year), 
+                                  col_select = c("RINPERSOONS", "RINPERSOON", 
+                                                 "OPLNRHB")) %>%
       rename(education_number = OPLNRHB) %>%
       mutate(
         RINPERSOONS = as_factor(RINPERSOONS, levels = "value"),
@@ -667,10 +698,9 @@ for (year in seq((as.integer(format(dmy(cfg$child_birth_date_min), "%Y")) + cfg$
       bind_rows(parents_education, .)
     
   }  else if (year >= 2013) {
-    # [SQL] only the parents (education is only left-joined on the parent ids)
-    parents_education <- read_db(get_hoogstopl_filename(year), 
-                                 cols = c("RINPERSOONS", "RINPERSOON", "OPLNIVSOI2016AGG4HBMETNIRWO"),
-                                 filter_in = list(RINPERSOON = c(cohort_dat$RINPERSOONpa, cohort_dat$RINPERSOONMa))) %>%
+    parents_education <- read_sav(get_hoogstopl_filename(year), 
+                                  col_select = c("RINPERSOONS", "RINPERSOON", 
+                                                 "OPLNIVSOI2016AGG4HBMETNIRWO")) %>%
       rename(education = OPLNIVSOI2016AGG4HBMETNIRWO) %>%
       mutate(
         RINPERSOONS = as_factor(RINPERSOONS, levels = "value"),
