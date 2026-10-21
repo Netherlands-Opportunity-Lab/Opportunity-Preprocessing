@@ -60,10 +60,19 @@ contact_moments <- data.frame(
 wiechen_items <- c("zin2w", "pop6", "noemt", "wijstaan", "zin3w", "verstaan1",
                    "spontaan", "vragen1", "verstaan2", "vragen2")
 
+# The raw health file codes the Wiechen items as numbers (codebook: 1 = plus,
+# 2 = min, 3 = M / onbekend); the old Stata panel had the text "+", "-", "M".
+# Both are turned into "+", "-", "M" here, anything else becomes missing.
+wiechen_code <- function(x) {
+  x <- trimws(as.character(haven::zap_labels(x)))
+  x <- unname(c("1" = "+", "2" = "-", "3" = "M", "+" = "+", "-" = "-", "M" = "M")[x])
+  x
+}
+
 jgz <- readRDS(loc$panel_postcode_file) %>%
   mutate(
-    # "" and the conflict marker ".r" (from 00) are missing
-    across(any_of(wiechen_items), function(x) ifelse(x %in% c("", REMOVED), NA_character_, x)),
+    # Wiechen items as "+" / "-" / "M"; "" and ".r" (conflict marker from 00) missing
+    across(any_of(wiechen_items), wiechen_code),
     pc4 = gba_postcode,
     pc3 = floor(gba_postcode / 10),
     sex = case_when(geslacht == cfg$sex_boy  ~ "boy",

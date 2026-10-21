@@ -46,6 +46,51 @@ default:
     # Also export "excluding organisation X" results for the orgs above?
     export_excl: FALSE
 
+    # --- 06_build_catchment_sample.R ---------------------------------------------
+    # Rebuilds Data_CatchmentArea_3pooled_withvariables (Coen, Sept 2020) for
+    # the bereik analyses. Coen's do-files are not available, so the choices
+    # below were reconstructed from the variable list of his dataset and the
+    # do-file overview. Check them before using the results.
+    #
+    # Children born in this range are candidates; the coverage rule below
+    # narrows this down further.
+    catch_birth_date_min: "2008-01-01"
+    catch_birth_date_max: "2015-12-31"
+    # Contact-moment windows in completed months of age (calendar months since
+    # the birth month, like Coen's %tm variables). Overall 22-53 months as in the
+    # do-file overview; the split between the moments is an assumption based on
+    # the contact-moment windows in 02.
+    catch_cm_windows:
+      2y:   [22, 33]
+      3y:   [34, 42]
+      3y9m: [43, 53]
+    # A child is in the sample when he/she lives continuously in the catchment
+    # area of ONE organisation during the whole window (first to last month
+    # above). Address spells that follow each other within this many months
+    # count as continuous (1 = next spell starts in the same or next month).
+    catch_max_gap_months: 1
+    # An area only counts while it is covered: between `aanvang` and `einde` in
+    # the PC4 file, and not after the last contact month of that organisation
+    # in the JGZ panel (end of the data delivery).
+    catch_use_data_end: TRUE
+    # "Observed" at a contact moment = at least one row in the JGZ panel (one
+    # row = at least one recorded item) with an age within the window. TRUE:
+    # only count contacts by the catchment organisation itself.
+    catch_observed_same_org: FALSE
+    # Reference age for the "cm_" variables (income, household income, health
+    # costs, addresses of child and parents, postcode_4). The regression
+    # do-file mentions both "calendar year of contact moment" and "age 36
+    # months"; 36 months is the middle (3y) contact moment.
+    catch_reference_age_months: 36
+    # Year of the education file (HOOGSTEOPLTAB) for the parents
+    catch_education_year: 2019
+    # Columns to keep from HOOGSTEOPLTAB (missing ones are skipped with a message)
+    catch_education_cols: [OPLNRHB, OPLNRHG, OPLNIVSOI2016AGG4HBMETNIRWO,
+                           OPLNIVSOI2016AGG4HGMETNIRWO, RICHTPLTSHBMETNIRWO, GEWICHTHOOGSTEOPL]
+    # Health costs: columns whose name matches this pattern count as mental
+    # health care (GGZ); mental care = any such cost > 0 in the year.
+    catch_mental_care_pattern: "GGZ"
+
   file_locations:
     # --- raw CBS microdata (00) ---------------------------------------------
     id_file:      "L:/8151mcuniekCBKV2.SAV"
@@ -97,3 +142,20 @@ default:
     catchment_persoon_file: "G:/Bevolking/GBAPERSOONTAB/2017/geconverteerde data/GBAPERSOON2017TABV1.DTA"
     catchment_adres_file:   "G:/Bevolking/GBAADRESOBJECTBUS/2017/geconverteerde data/GBAADRESOBJECT2017BUSV1.dta"
     catchment_output:       "H:/JGZ-Pilot-Data/Descriptives Results/CatchmentArea.xlsx"
+
+    # --- 06_build_catchment_sample.R ---------------------------------------------
+    # Root of the CBS microdata; yearly files (INPA, IPI, INHA, HOOGSTEOPL,
+    # ZVWZORGKOSTEN) are found below it, latest version per year, as in the
+    # other pipelines of this repository.
+    data_folder: "G:/"
+    catch_gba_persoon_file: "Bevolking/GBAPERSOONTAB/2023/GBAPERSOON2023TABV1.sav"
+    catch_gba_adres_file:   "Bevolking/GBAADRESOBJECTBUS/GBAADRESOBJECT2023BUSV1.sav"
+    catch_vslpostcode_file: "BouwenWonen/VSLPOSTCODEBUS/VSLPOSTCODEBUSV2025031.sav"
+    catch_kindouder_file:   "Bevolking/KINDOUDERTAB/KINDOUDER2023TABV1.sav"
+    # PC4 -> organisation with coverage dates (org, gemeente, postcode_4, aanvang, einde)
+    catch_pc4_org_file:     "resources/jgz_pc4gebieden.csv"
+    # Country -> western / non-western (for ETNGRP)
+    catch_land_ref_file:    "resources/LANDAKTUEELREF10.sav"
+    # Output: Stata file with the variable names of Coen's dataset (read by the
+    # bereik regression do-file) and an .rds copy
+    catch_sample_file:      "H:/JGZ-Pilot-Data/Data_CatchmentArea_3pooled_withvariables_R.dta"

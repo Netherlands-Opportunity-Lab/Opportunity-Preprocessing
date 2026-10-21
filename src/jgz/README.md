@@ -26,6 +26,7 @@ no `join_by()`, `if_any()` or `relationship =`.
 | `check_function.R` | – | – | Disclosure checks for gradients (used by 04) |
 | `04_to_export.R` | `*_tidy.xlsx` | `*_tidy_export.xlsx` | Combines speech/language files and runs the checks |
 | `05_final.R` | outputs of 02 and 04, other results | export workbooks | Bundles everything for the organisations in `export_orgs` (config). Map workbooks keep the 2025 file and sheet names that `pc4_map_JGZ.R` reads |
+| `06_build_catchment_sample.R` | panel (00), GBA, KINDOUDER, income, education and health-cost files, `resources/jgz_pc4gebieden.csv` | `Data_CatchmentArea_3pooled_withvariables_R.dta` | Rebuilds Coen's catchment-area sample for the bereik analyses: children living in one organisation's area from 22 to 53 months, observed or not at 2y/3y/3y9m (`d_obs_cat`), with child and family characteristics. Variable names as in Coen's file, so the bereik regression do-file runs on it |
 | `catchment_area_calculations.R` | GBA, VSLPOSTCODEBUS, cleaned ID file (00) | `CatchmentArea.xlsx` | Share of permanently resident children (born 2010-2014) covered by the JGZ data, per PC2/PC3 |
 | `jgz_helpers.R` | – | – | Config loading and shared helpers (sourced by all scripts) |
 
@@ -33,7 +34,8 @@ Preprocessing in the narrow sense is 00, 01 and the first part of 02
 (contact moments). The rest is analysis output and export.
 
 Not in this folder: the scripts that produce the gradient, proportion and
-bereik regression results that 03-05 read.
+bereik regression results that 03-05 read. The bereik analyses start from the
+output of 06.
 
 ## Manual steps and open points
 
@@ -51,6 +53,20 @@ bereik regression results that 03-05 read.
   cells (e.g. boys = total - girls) are not checked.
 - **Catchment output** contains counts below 10; apply output rules before
   export.
+- **06 is a reconstruction.** Coen's do-files (2020) could not be exported, so
+  06 was rebuilt from the variable list of his dataset. The choices that could
+  not be checked are `catch_*` settings in the config and listed as [C1]-[C8]
+  at the top of the script: contact-moment windows, the continuity rule,
+  coverage/data end per organisation, what counts as observed, the reference
+  age (36 months) for income/addresses/health costs, the health-cost total,
+  ETNGRP, and ISCED (not rebuilt, empty column). Before using it, compare its
+  output with Coen's `H:/Archive/Coen/TempData/Data_CatchmentArea_3pooled_withvariables.dta`
+  inside Remote Access (number of children per `org_catchment`, `d_obs_cat`
+  distribution) and adjust the settings where they differ.
+- **PC4 file.** `resources/jgz_pc4gebieden.csv` is the copy from
+  `Opportunity-Analysis-Map/JGZ/resources`; the copy in "Background info
+  preprocessing JGZ" on SharePoint has broken quoting. PC4 8080 is listed
+  twice; 06 uses the first row and warns.
 
 ## Checking a run of 00 against Stata
 
