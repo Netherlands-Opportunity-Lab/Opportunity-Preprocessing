@@ -1,350 +1,164 @@
-library(readxl)
-library(openxlsx)
+# =============================================================================
+# JGZ pilot -- 05. Final export bundle
+#
+# Collects the output that may leave CBS into a few workbooks in
+# loc$export_folder:
+#   maps_bmi_pc3_export.xlsx, maps_bmi_pc4_export.xlsx  BMI per area (02)
+#   maps_sdq_export.xlsx, maps_wiechen_export.xlsx      SDQ and Wiechen per area (02)
+#   gradients_export.xlsx                               checked gradients (04)
+#   proportions_export.xlsx, regressions_export.xlsx,
+#   descriptives_export.xlsx                            other results
+# Only organisations 7 (ZONL) and 10 (Verian) are exported.
+#
+# The map tables are already suppressed in 02; here suppressed rows are
+# dropped and the tables are split into the sheets that go to the map makers.
+#
+# Changes compared with the old script (see git history):
+#   - map tables are read by sheet name from the 02 workbooks (the old fixed
+#     cell ranges such as A1:H250 silently cut off rows)
+#   - sheet names use the contact-moment names from 02 for PC3 and PC4 alike
+#     (old: "4weeks" for PC3 and "4wks" for PC4; Wiechen "3y9m" is now "3years9m")
+#   - organisation filter matches "_7_" / "_10_" style names only (the old
+#     pattern "(7|10)" also matched e.g. "groep7" or "2017")
+#   - copied files are overwritten (file.copy used to keep stale versions) and
+#     only the files selected in this run are bundled
+#   - sheet names are cut to Excel's 31-character limit
+#
+# Run from the repository root.
+# =============================================================================
 
-time <- c("4weeks", "8weeks", "3months", "4months", "6months", "9months", "11months", 
-          "14months", "18months", "2years", "3years", "3years9m", "groep2", "groep7", "klas2")
+source("src/jgz/jgz_helpers.R")
+suppressPackageStartupMessages({
+  library(readxl)
+  library(openxlsx)
+  library(tidyr)
+})
 
-wb <- createWorkbook()
+ensure_dir(loc$export_folder)
+using_folder <- ensure_dir(file.path(loc$export_folder, "using data"))
 
-for (t in time) {
-  data <-  read_excel("H:/Archive/Sonya/JGZ pilot data/maps results/output_cases_postcode3_bmi.xlsx", 
-                      sheet = paste0("bmi_", t), range = "A1:F100")
-  sex <- read_excel("H:/Archive/Sonya/JGZ pilot data/maps results/output_cases_postcode3_bmi.xlsx", 
-                    sheet = paste0("bmi_", t), range = "L1:R120")
-  
-  data_bmi <- data %>%
-    select(postcode3, bmi_mean, bmi_sd, n) %>%
-    filter(n != "NA")
-  
-  data_bmi_90p <- data %>%
-    mutate(
-      bmi_90p = as.integer(bmi_90p),
-      bmi_90p = ifelse(bmi_90p < 10, NA, bmi_90p), 
-      bmi_90p_perc = ifelse(bmi_90p < 10, NA, bmi_90p_perc)
-    ) %>%
-    select(postcode3, bmi_90p, bmi_90p_perc) %>%
-    filter(!is.na(bmi_90p))
-  
-  sex_bmi <- sex %>%
-    select(postcode3, geslacht, bmi_mean, bmi_sd, n) %>%
-    filter(n != "NA")
-  
-  sex_bmi_90p <- sex %>%
-    mutate(
-      bmi_90p = as.integer(bmi_90p),
-      bmi_90p = ifelse(bmi_90p < 10, NA, bmi_90p), 
-      bmi_90p_perc = ifelse(bmi_90p < 10, NA, bmi_90p_perc)
-    ) %>%
-    select(postcode3, geslacht, bmi_90p, bmi_90p_perc) %>%
-    filter(!is.na(bmi_90p))
-  
-  addWorksheet(wb, sheet = paste0("bmi_", t))
-  writeData(wb,paste0("bmi_", t), data_bmi)
-  
-  addWorksheet(wb, sheet = paste0("bmi_90p_", t))
-  writeData(wb,paste0("bmi_90p_", t), data_bmi_90p)
-  
-  addWorksheet(wb, paste0("bmi_", t, "_sex"))
-  writeData(wb,paste0("bmi_", t, "_sex"), sex_bmi)
-  
-  addWorksheet(wb, paste0("bmi_90p_", t, "_sex"))
-  writeData(wb,paste0("bmi_90p_", t, "_sex"), sex_bmi_90p)
+EXPORT_ORGS <- c(7, 10)
+org_pattern <- paste0("_(", paste(EXPORT_ORGS, collapse = "|"), ")(_|\\.)")
+
+# Unique sheet names of at most 31 characters
+sheet_names <- function(x) {
+  x <- substr(x, 1, 31)
+  dup <- duplicated(x) | duplicated(x, fromLast = TRUE)
+  x[dup] <- paste0(substr(x[dup], 1, 27), "_", seq_len(sum(dup)))
+  x
 }
 
-saveWorkbook(wb, "H:/Archive/Sonya/JGZ pilot data/maps results/output_cases_postcode3_bmi_export.xlsx", overwrite = TRUE)
-
-
-time <- c("4wks", "8wks", "3months", "4months", "6months", "9months", "11months", 
-          "14months", "18months", "2years", "3years", "3years9m", "groep2", "groep7", "klas2")
-
-wb <- createWorkbook()
-
-for (t in time) {
-  data <-  read_excel("H:/Archive/Sonya/JGZ pilot data/maps results/output_cases_postcode4_bmi.xlsx", 
-                      sheet = paste0("bmi_", t), range = "A1:F100")
-  sex <- read_excel("H:/Archive/Sonya/JGZ pilot data/maps results/output_cases_postcode4_bmi.xlsx", 
-                    sheet = paste0("bmi_", t), range = "L1:R120")
-  data_bmi <- data %>%
-    select(postcode, bmi_mean, bmi_sd, n) %>%
-    filter(n != "NA")
-  
-  data_bmi_90p <- data %>%
-    mutate(
-      bmi_90p = as.integer(bmi_90p),
-      bmi_90p = ifelse(bmi_90p < 10, NA, bmi_90p), 
-      bmi_90p_perc = ifelse(bmi_90p < 10, NA, bmi_90p_perc)
-    ) %>%
-    select(postcode, bmi_90p, bmi_90p_perc) %>%
-    filter(!is.na(bmi_90p))
-  
-  sex_bmi <- sex %>%
-    select(postcode, geslacht, bmi_mean, bmi_sd, n) %>%
-    filter(n != "NA")
-  
-  sex_bmi_90p <- sex %>%
-    mutate(
-      bmi_90p = as.integer(bmi_90p),
-      bmi_90p = ifelse(bmi_90p < 10, NA, bmi_90p), 
-      bmi_90p_perc = ifelse(bmi_90p < 10, NA, bmi_90p_perc)
-    ) %>%
-    select(postcode, geslacht, bmi_90p, bmi_90p_perc) %>%
-    filter(!is.na(bmi_90p))
-  
-  addWorksheet(wb, sheet = paste0("bmi_", t))
-  writeData(wb,paste0("bmi_", t), data_bmi)
-  
-  addWorksheet(wb, sheet = paste0("bmi_90p_", t))
-  writeData(wb,paste0("bmi_90p_", t), data_bmi_90p)
-  
-  addWorksheet(wb, paste0("bmi_", t, "_sex"))
-  writeData(wb,paste0("bmi_", t, "_sex"), sex_bmi)
-  
-  addWorksheet(wb, paste0("bmi_90p_", t, "_sex"))
-  writeData(wb,paste0("bmi_90p_", t, "_sex"), sex_bmi_90p)
-}
-
-saveWorkbook(wb, "H:/Archive/Sonya/JGZ pilot data/maps results/output_cases_postcode4_bmi_export.xlsx", overwrite = TRUE)
-
-
-
-time <- c("groep2", "groep7", "klas2", "3years9m")
-
-wb <- createWorkbook()
-
-for (t in time) {
-  pc4 <- read_excel("H:/Archive/Sonya/JGZ pilot data/maps results/output_cases_postcode4_3_sdq.xlsx", 
-                    sheet = paste0("sdq_", t, "_pc4"), range = "A1:H250")
-  pc3 <- read_excel("H:/Archive/Sonya/JGZ pilot data/maps results/output_cases_postcode4_3_sdq.xlsx", 
-                    sheet = paste0("sdq_", t, "_pc3"), range = "A1:H100")
-  
-  pc4_sdq <- pc4 %>%
-    select(postcode, sdq_mean, sdq_sd, n) %>%
-    filter(n != "NA")
-  
-  pc4_sdq11 <- pc4 %>%
-    select(postcode, sdq_11_n, sdq_11_perc) %>%
-    filter(sdq_11_n != "NA")
-  
-  pc4_sdq14 <- pc4 %>%
-    select(postcode, sdq_14_n, sdq_14_perc) %>%
-    filter(sdq_14_n != "NA")
-  
-  pc3_sdq <- pc3 %>%
-    select(postcode3, sdq_mean, sdq_sd, n) %>%
-    filter(n != "NA")
-  
-  pc3_sdq11 <- pc3 %>%
-    select(postcode3, sdq_11_n, sdq_11_perc) %>%
-    filter(sdq_11_n != "NA")
-  
-  pc3_sdq14 <- pc3 %>%
-    select(postcode3, sdq_14_n, sdq_14_perc) %>%
-    filter(sdq_14_n != "NA")
-  
-  addWorksheet(wb, sheet = paste0("sdq_", t, "_pc4"))
-  writeData(wb,paste0("sdq_", t, "_pc4"), pc4_sdq)
-  
-  addWorksheet(wb, sheet = paste0("sdq11_", t, "_pc4"))
-  writeData(wb,paste0("sdq11_", t, "_pc4"), pc4_sdq11)
-  
-  addWorksheet(wb, sheet = paste0("sdq14_", t, "_pc4"))
-  writeData(wb,paste0("sdq14_", t, "_pc4"), pc4_sdq14)
-  
-  addWorksheet(wb, sheet = paste0("sdq_", t, "_pc3"))
-  writeData(wb,paste0("sdq_", t, "_pc3"), pc3_sdq)
-  
-  addWorksheet(wb, sheet = paste0("sdq11_", t, "_pc3"))
-  writeData(wb,paste0("sdq11_", t, "_pc3"), pc3_sdq11)
-  
-  addWorksheet(wb, sheet = paste0("sdq14_", t, "_pc3"))
-  writeData(wb,paste0("sdq14_", t, "_pc3"), pc3_sdq14)
-}
-
-saveWorkbook(wb, "H:/Archive/Sonya/JGZ pilot data/maps results/output_cases_postcode4_3_sdq_export.xlsx", overwrite = TRUE)
-
-
-time <- c("2years", "3y9m")
-
-wb <- createWorkbook()
-
-for (t in time) {
-  pc4 <- read_excel("H:/Archive/Sonya/JGZ pilot data/maps results/output_cases_postcode4_3_wiechen.xlsx", 
-                    sheet = paste0("wiechen_", t, "_pc4"), range = "A1:H250")
-  pc3 <- read_excel("H:/Archive/Sonya/JGZ pilot data/maps results/output_cases_postcode4_3_wiechen.xlsx", 
-                    sheet = paste0("wiechen_", t, "_pc3"), range = "A1:H100")
-  
-  pc4_taal <- pc4 %>%
-    select(postcode, taal_ont_achts, taal_ont_achts_perc) %>%
-    filter(taal_ont_achts != "NA")
-  
-  pc4 <- pc4 %>%
-    select(-c(taal_ont_achts, taal_ont_achts_perc)) %>%
-    pivot_longer(
-      cols = ends_with("_perc"), 
-      names_to = "outcome", 
-      values_to = "perc"
-    ) %>%
-    mutate(outcome = gsub("_perc", "", outcome)) %>%
-    filter(n != "NA" & perc != "NA")
-  
-  pc3_taal <- pc3 %>%
-    select(postcode3, taal_ont_achts, taal_ont_achts_perc) %>%
-    filter(taal_ont_achts != "NA")
-  
-  pc3 <- pc3 %>%
-    select(-c(taal_ont_achts, taal_ont_achts_perc)) %>%
-    pivot_longer(
-      cols = ends_with("_perc"), 
-      names_to = "outcome", 
-      values_to = "perc"
-    ) %>%
-    mutate(outcome = gsub("_perc", "", outcome)) %>%
-    filter(n != "NA" & perc != "NA")
-  
-  addWorksheet(wb, sheet = paste0("wiechen_taal_", t, "_pc4"))
-  writeData(wb,paste0("wiechen_taal_", t, "_pc4"), pc4_taal)
-  
-  addWorksheet(wb, sheet = paste0("wiechen_taal_", t, "_pc3"))
-  writeData(wb,paste0("wiechen_taal_", t, "_pc3"), pc3_taal)
-  
-  addWorksheet(wb, sheet = paste0("wiechen_", t, "_pc4"))
-  writeData(wb,paste0("wiechen_", t, "_pc4"), pc4)
-  
-  addWorksheet(wb, sheet = paste0("wiechen_", t, "_pc3"))
-  writeData(wb,paste0("wiechen_", t, "_pc3"), pc3)
-  
-}
-
-saveWorkbook(wb, "H:/Archive/Sonya/JGZ pilot data/maps results/output_cases_postcode4_3_wiechen_export.xlsx", overwrite = TRUE)
-
-#### Gradients ####
-
-# select the relevant gradients for export
-files <- list.files("H:/JGZ-Pilot-Data/Gradients Analysis Results", pattern = "^[^ ]*_(7|10)_tidy_export", full.names = TRUE)
-files <- files[!grepl("excl", files)]
-file.copy(
-  from = files, 
-  to = file.path("H:/Archive/Sonya/Export JGZ/using data", basename(files))
-)
-
-gradient_files <- list.files("H:/Archive/Sonya/Export JGZ/using data", pattern = "gradients", full.names = TRUE)
-
-wb <- createWorkbook()
-
-for (file in gradient_files) {
-  data <- read.xlsx(file)
-  data <- tibble(data)
-  if(nrow(data) == 0) next
-  
-  file_name <- basename(file)
-  sheet_name <- sub("gradients_(.*)_tidy_export.xlsx", "\\1", file_name)
-  
-  addWorksheet(wb, sheet_name)
-  writeData(wb, sheet_name, data)
-}
-
-
-saveWorkbook(wb, "H:/Archive/Sonya/Export JGZ/gradients_export.xlsx", overwrite = TRUE)
-
-#### Proportions ####
-
-# select the relevant gradients for export
-files <- list.files("H:/Archive/Sonya/JGZ pilot data/Proportions Results", pattern = "(7|10)", full.names = TRUE)
-files <- files[!grepl("excl", files)]
-file.copy(
-  from = files, 
-  to = file.path("H:/Archive/Sonya/Export JGZ/using data", basename(files))
-)
-
-
-
-pr_files <- list.files("H:/Archive/Sonya/Export JGZ/using data", pattern = "proportions", full.names = TRUE)
-
-wb <- createWorkbook()
-
-for (file in pr_files) {
-  
-  data <- read.xlsx(file)
-  data <- tibble(data)
-  if(nrow(data) == 0) next
-  
-  file_name <- basename(file)
-  sheet_name <- file_name
-  
-  addWorksheet(wb, sheet_name)
-  writeData(wb, sheet_name, data)
-}
-
-
-saveWorkbook(wb, "H:/Archive/Sonya/Export JGZ/proportions_export.xlsx", overwrite = TRUE)
-
-
-#### Bereik ####
-
-# select the relevant gradients for export
-files <- list.files("H:/Archive/Sonya/JGZ pilot data/Bereik Regression Results", pattern = "(7|10)", full.names = TRUE)
-files <- files[!grepl("excl", files)]
-file.copy(
-  from = files, 
-  to = file.path("H:/Archive/Sonya/Export JGZ/using data", basename(files))
-)
-
-obs_files <- list.files("H:/Archive/Sonya/Export JGZ/using data", pattern = "obs", full.names = TRUE)
-
-wb <- createWorkbook()
-
-for (file in obs_files) {
-  
-  data <- read_xls(file)
-  data <- tibble(data)
-  if(nrow(data) == 0) next
-  
-  if ("N" %in% names(data)) {
-    data <- data %>%
-      filter(N >= 10) # n of observations
-  } else {
-    data <- data %>%
-      filter(c16 >= 10) # n of observations
+write_workbook <- function(tables, file) {
+  tables <- tables[vapply(tables, nrow, integer(1)) > 0]
+  nms <- sheet_names(names(tables))
+  wb <- createWorkbook()
+  for (i in seq_along(tables)) {
+    addWorksheet(wb, nms[i])
+    writeData(wb, nms[i], tables[[i]])
   }
-  
-  
-  file_name <- basename(file)
-  sheet_name <- file_name
-  
-  addWorksheet(wb, sheet_name)
-  writeData(wb, sheet_name, data)
+  saveWorkbook(wb, file, overwrite = TRUE)
+  message(sprintf("Written: %s (%d sheets)", file, length(tables)))
 }
 
+read_map <- function(file, sheet) read_xlsx(file.path(loc$maps_folder, file), sheet = sheet)
 
-saveWorkbook(wb, "H:/Archive/Sonya/Export JGZ/regressions_export.xlsx", overwrite = TRUE)
+cms <- c("4wks", "8wks", "3months", "4months", "6months", "9months", "11months",
+         "14months", "18months", "2years", "3years", "3years9m", "groep2", "groep7", "klas2")
 
 
-#### Descriptives ####
+# =============================================================================
+# MAP TABLES
+# =============================================================================
 
-# select the relevant gradients for export
-files <- list.files("H:/Archive/Sonya/JGZ pilot data/Descriptives Results", pattern = "(7|10)", full.names = TRUE)
-files <- files[!grepl("excl", files)]
-file.copy(
-  from = files, 
-  to = file.path("H:/Archive/Sonya/Export JGZ/using data", basename(files))
+# --- BMI: one workbook per geography -------------------------------------------
+for (geo in c("pc3", "pc4")) {
+  area <- if (geo == "pc3") "postcode3" else "postcode"
+  out <- list()
+  for (t in cms) {
+    tot <- read_map("jgz_maps_bmi.xlsx", paste0("bmi_", t, "_", geo))
+    sex <- read_map("jgz_maps_bmi.xlsx", paste0("bmi_", t, "_", geo, "_sex"))
+    out[[paste0("bmi_", t)]] <- tot %>%
+      filter(!is.na(n)) %>% select(all_of(area), bmi_mean, bmi_sd, n)
+    out[[paste0("bmi_90p_", t)]] <- tot %>%
+      filter(!is.na(bmi_90p)) %>% select(all_of(area), bmi_90p, bmi_90p_perc)
+    out[[paste0("bmi_", t, "_sex")]] <- sex %>%
+      filter(!is.na(n)) %>% select(all_of(area), geslacht, bmi_mean, bmi_sd, n)
+    out[[paste0("bmi_90p_", t, "_sex")]] <- sex %>%
+      filter(!is.na(bmi_90p)) %>% select(all_of(area), geslacht, bmi_90p, bmi_90p_perc)
+  }
+  write_workbook(out, file.path(loc$export_folder, paste0("maps_bmi_", geo, "_export.xlsx")))
+}
+
+# --- SDQ ------------------------------------------------------------------------
+out <- list()
+for (t in c("groep2", "groep7", "klas2", "3years9m")) {
+  for (geo in c("pc4", "pc3")) {
+    area <- if (geo == "pc3") "postcode3" else "postcode"
+    d <- read_map("jgz_maps_sdq.xlsx", paste0("sdq_", t, "_", geo))
+    out[[paste0("sdq_", t, "_", geo)]]   <- d %>% filter(!is.na(n)) %>% select(all_of(area), sdq_mean, sdq_sd, n)
+    out[[paste0("sdq11_", t, "_", geo)]] <- d %>% filter(!is.na(sdq_11_n)) %>% select(all_of(area), sdq_11_n, sdq_11_perc)
+    out[[paste0("sdq14_", t, "_", geo)]] <- d %>% filter(!is.na(sdq_14_n)) %>% select(all_of(area), sdq_14_n, sdq_14_perc)
+  }
+}
+write_workbook(out, file.path(loc$export_folder, "maps_sdq_export.xlsx"))
+
+# --- Wiechen ----------------------------------------------------------------------
+out <- list()
+for (t in c("2years", "3years9m")) {
+  for (geo in c("pc4", "pc3")) {
+    area <- if (geo == "pc3") "postcode3" else "postcode"
+    d <- read_map("jgz_maps_wiechen.xlsx", paste0("wiechen_", t, "_", geo)) %>% filter(!is.na(n))
+    out[[paste0("wiechen_taal_", t, "_", geo)]] <- d %>%
+      filter(!is.na(taal_ont_achts)) %>%
+      select(all_of(area), n, taal_ont_achts, taal_ont_achts_perc)
+    out[[paste0("wiechen_", t, "_", geo)]] <- d %>%
+      select(-taal_ont_achts, -taal_ont_achts_perc) %>%
+      pivot_longer(ends_with("_perc"), names_to = "outcome", values_to = "perc") %>%
+      mutate(outcome = sub("_perc$", "", outcome)) %>%
+      filter(!is.na(perc))
+  }
+}
+write_workbook(out, file.path(loc$export_folder, "maps_wiechen_export.xlsx"))
+
+
+# =============================================================================
+# OTHER RESULTS (organisations 7 and 10 only)
+# =============================================================================
+
+# Copy the selected files to "using data" and return their new paths
+select_and_copy <- function(folder, pattern) {
+  files <- list.files(folder, pattern = pattern, full.names = TRUE)
+  files <- files[!grepl("excl", basename(files))]
+  if (length(files) == 0) warning("No files selected in ", folder)
+  file.copy(files, file.path(using_folder, basename(files)), overwrite = TRUE)
+  file.path(using_folder, basename(files))
+}
+
+bundle <- function(files, out_file, read_fun = read_excel, name_fun = basename, filter_fun = identity) {
+  tables <- lapply(files, function(f) filter_fun(read_fun(f)))
+  names(tables) <- name_fun(files)
+  write_workbook(tables, file.path(loc$export_folder, out_file))
+}
+
+# --- Gradients (checked in 04) ---------------------------------------------------
+gradient_files <- select_and_copy(
+  loc$gradients_folder,
+  paste0("^[^ ]*_(", paste(EXPORT_ORGS, collapse = "|"), ")_tidy_export\\.xlsx$")
 )
+bundle(gradient_files, "gradients_export.xlsx",
+       name_fun = function(f) sub("^gradients_(.*)_tidy_export\\.xlsx$", "\\1", basename(f)))
 
+# --- Proportions ---------------------------------------------------------------------
+bundle(select_and_copy(loc$proportions_folder, org_pattern), "proportions_export.xlsx")
 
-d_files <- list.files("H:/Archive/Sonya/Export JGZ/using data", pattern = "descriptives", full.names = TRUE)
+# --- Bereik (reach) regressions: drop rows with fewer than min_cell observations
+bundle(select_and_copy(loc$bereik_folder, org_pattern), "regressions_export.xlsx",
+       filter_fun = function(d) {
+         # the number of observations is in `N`, or in column `c16` in older files
+         n_col <- intersect(c("N", "c16"), names(d))[1]
+         if (is.na(n_col)) stop("No N column (N or c16) found in a bereik file")
+         d[!is.na(d[[n_col]]) & d[[n_col]] >= cfg$min_cell, ]
+       })
 
-wb <- createWorkbook()
-
-for (file in d_files) {
-  
-  data <- read.xlsx(file)
-  
-  file_name <- basename(file)
-  sheet_name <- file_name
-  
-  addWorksheet(wb, sheet_name)
-  writeData(wb, sheet_name, data)
-}
-
-
-saveWorkbook(wb, "H:/Archive/Sonya/Export JGZ/descriptives_export.xlsx", overwrite = TRUE)
-
+# --- Descriptives ------------------------------------------------------------------
+bundle(select_and_copy(loc$export_descriptives_folder, org_pattern), "descriptives_export.xlsx")

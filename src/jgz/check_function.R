@@ -1,197 +1,83 @@
-##Check for the allowed number of observations
-simple_check <- function(data) {
-  ###condition 1. N > 10
-    data <- data %>%
-      group_by(cm, outcome, subgroup) %>%
-      mutate (
-        flag = any(N < 10)
-      ) %>%
-      mutate(
-        estimate = ifelse(flag, NA, estimate), 
-        inc = ifelse(flag, NA, inc), 
-        N = ifelse(flag, NA, N)
-      ) %>%
-      ungroup() %>%
-      filter(!is.na(estimate))
-    
+# =============================================================================
+# JGZ pilot -- disclosure checks for the gradient output (used by 04)
+#
+# A gradient is one outcome for one contact moment (cm) and subgroup over the
+# 20 parental-income bins. A gradient is only exported when:
+#   1. every bin has N >= min_cell
+#   2. for proportions: every bin has N * p >= min_cell and N * (1 - p) >= min_cell
+#   3. all 20 bins are present (otherwise a suppressed bin could be derived)
+# Checks are applied per gradient: a gradient fails as a whole.
+#
+# Changes compared with the old version (see git history):
+#   - complex_check() suppresses per outcome. The old version dropped whole
+#     rows when one outcome failed, which also removed the other outcomes
+#     (e.g. weight and length disappeared when BMI was suppressed), and it
+#     added a stray text column `estimate` to the export.
+#   - proportions are recognised by 0 <= estimate <= 1 (was only <= 1).
+# =============================================================================
 
-    ###condition 3. for proportions only
-    if (all(data$estimate <= 1, na.rm = TRUE) & all(!is.na(data$estimate))) {
-      
-      data <- data %>%
-        mutate(
-          N_estimate = N * estimate,
-          N_estimate_min = N * (1 - estimate)
-        )  %>%
-        group_by(cm, outcome, subgroup) %>%
-        mutate(
-          flag = any(N_estimate < 10 | N_estimate_min < 10)
-        ) %>%
-        mutate(
-          estimate = ifelse(flag, NA, estimate), 
-          inc = ifelse(flag, NA, inc), 
-          N = ifelse(flag, NA, N)
-        ) %>%
-        ungroup() %>%
-        select(-c(flag, N_estimate, N_estimate_min)) %>%
-        filter(!is.na(estimate))
-  
-    }
-    
-    ### delete incomplete gradients
-    data <- data %>%
-      group_by(cm, outcome, subgroup) %>%
-      mutate(
-        estimate = if (n() < 20) NA else estimate #needs to have all 20 bins
-      ) %>%
-      ungroup() %>%
-      filter(!is.na(estimate))
-    
-    
-    data <-
-      data %>%
-      mutate(bin = recode(as.character(bin),
-                           "1" = "0% - 5%", "2" = "5% - 10%", "3" = "10% - 15%", "4" = "15% - 20%",
-                           "5" = "20% - 25%", "6" = "25% - 30%", "7" = "30% - 35%", "8" = "35% - 40%",
-                           "9" = "40% - 45%", "10" = "45% - 50%", "11" = "50% - 55%", "12" = "55% - 60%",
-                           "13" = "60% - 65%", "14" = "65% - 70%", "15" = "70% - 75%", "16" = "75% - 80%",
-                           "17" = "80% - 85%", "18" = "85% - 90%", "19" = "90% - 95%", "20" = "95% - 100%"))
+N_BINS <- 20
+BIN_LABELS <- paste0(seq(0, 95, 5), "% - ", seq(5, 100, 5), "%")
 
-  return(data)
+label_bins <- function(data) {
+  if ("bin" %in% names(data)) data$bin <- BIN_LABELS[as.integer(data$bin)]
+  data
 }
 
-complex_check <-  function(data, variable_names) {
-  
-  for (name in variable_names) {
-    #define variable names
-    N <- paste0("N_", name)
-    estimate <- paste0("estimate_", name)
-    inc <- paste0("inc_", name)
-    
-    ###condition 1. N > 10
-    data <- data %>%
-      group_by(cm, subgroup) %>%
-      mutate (
-        flag = any(!!sym(N) < 10)
-      ) %>%
-      mutate(
-        !!estimate := ifelse(flag, NA, get(estimate)), 
-        !!inc := ifelse(flag, NA, get(inc)), 
-        !!N := ifelse(flag, NA, get(N))
-      ) %>%
-      ungroup() %>%
-      select(-flag) %>%
-      filter(!is.na(!!sym(estimate)))
-    
-
-    ###condition 3. for proportions only
-    if (all(data[[estimate]] <= 1, na.rm = TRUE) & all(!is.na(data[[estimate]]))) {
-      
-      data <- data %>%
-        mutate(
-          N_estimate = !!sym(N) * !!sym(estimate),
-          N_estimate_min = !!sym(N) * (1 - !!sym(estimate))
-        )  %>%
-        group_by(cm, subgroup) %>%
-        mutate(
-          flag = any(N_estimate < 10 | N_estimate_min < 10)
-        ) %>%
-        mutate(
-          !!estimate := ifelse(flag, NA, get(estimate)), 
-          !!inc := ifelse(flag, NA, get(inc)), 
-          !!N := ifelse(flag, NA, get(N))
-        ) %>%
-        ungroup() %>%
-        select(-c(flag, N_estimate, N_estimate_min)) %>%
-        filter(!is.na(estimate))
-    }
-  }
-  
-  ### delete incomplete gradients
-  data <- data %>%
-    group_by(cm, subgroup) %>%
-    mutate(
-      estimate = if (n() < 20) NA else estimate #needs to have all 20 bins
-    ) %>%
-    ungroup() %>%
-    filter(!is.na(estimate))
-  
-  data <- data %>%
-    select (where (~ !all(is.na(.)))) ###select non-empty columns
-  if ("bin" %in% names(data)) {
-    data <- data %>%
-      mutate( bin = recode(as.character(bin),
-                          "1" = "0% - 5%", "2" = "5% - 10%", "3" = "10% - 15%", "4" = "15% - 20%",
-                          "5" = "20% - 25%", "6" = "25% - 30%", "7" = "30% - 35%", "8" = "35% - 40%",
-                          "9" = "40% - 45%", "10" = "45% - 50%", "11" = "50% - 55%", "12" = "55% - 60%",
-                          "13" = "60% - 65%", "14" = "65% - 70%", "15" = "70% - 75%", "16" = "75% - 80%",
-                          "17" = "80% - 85%", "18" = "85% - 90%", "19" = "90% - 95%", "20" = "95% - 100%"))
-  }
-    return(data)
+is_proportion <- function(estimate) {
+  e <- estimate[!is.na(estimate)]
+  length(e) > 0 && all(e >= 0 & e <= 1)
 }
 
-
-
-
-bmi_p_check <- function(data) {
-  
-  ###condition 1. N > 10
-  data <- data %>%
-    group_by(cm) %>%
-    mutate (
-      flag = any(N < 10)
-    ) %>%
-    mutate(
-      p10 = ifelse(flag, NA, p10), 
-      p25 = ifelse(flag, NA, p25), 
-      p50 = ifelse(flag, NA, p50), 
-      p75 = ifelse(flag, NA, p75), 
-      p90 = ifelse(flag, NA, p90), 
-      inc = ifelse(flag, NA, inc), 
-      N = ifelse(flag, NA, N)
-    ) %>%
-    ungroup() %>%
-    select(-flag) %>%
-    filter(!is.na(N))
-  
-
-  for (per in c("10", "25", "50", "75", "90")) {
-    p <- paste0("p", per)
-    
-    ###condition 1. N > 10
-    data <- data %>%
-      group_by(cm) %>%
-      mutate (
-        flag = any(get(p) < 10)
-      ) %>%
-      mutate(
-        !!p := ifelse(flag, NA, get(p))
-      ) %>%
-      ungroup() %>%
-      select(-flag) %>%
-      filter(!is.na(N))
-    
+# Which rows belong to a gradient that passes checks 1 and 2.
+# `keys` identify a gradient; returns a logical vector over the rows.
+gradient_passes <- function(data, keys, estimate, N, min_cell = 10) {
+  ok_row <- !is.na(estimate) & !is.na(N) & N >= min_cell
+  if (is_proportion(estimate)) {
+    ok_row <- ok_row & N * estimate >= min_cell & N * (1 - estimate) >= min_cell
   }
-  
-  #delete incomplete gradients 
-  data <- data %>%
-    group_by(cm) %>%
-    mutate(
-      N = if (n() < 20) NA else N #needs to have all 20 bins
-    ) %>%
-    ungroup() %>%
-    filter(!is.na(N))
-  
-  data <- data %>%
-    select (where (~ !all(is.na(.)))) ###select non-empty columns
-  if ("bin" %in% names(data)) {
-    data <- data %>%
-      mutate( bin = recode(as.character(bin),
-                           "1" = "0% - 5%", "2" = "5% - 10%", "3" = "10% - 15%", "4" = "15% - 20%",
-                           "5" = "20% - 25%", "6" = "25% - 30%", "7" = "30% - 35%", "8" = "35% - 40%",
-                           "9" = "40% - 45%", "10" = "45% - 50%", "11" = "50% - 55%", "12" = "55% - 60%",
-                           "13" = "60% - 65%", "14" = "65% - 70%", "15" = "70% - 75%", "16" = "75% - 80%",
-                           "17" = "80% - 85%", "18" = "85% - 90%", "19" = "90% - 95%", "20" = "95% - 100%"))
+  g <- interaction(data[keys], drop = TRUE)
+  # every row of the gradient must be ok, and all bins must be present
+  all_ok <- tapply(ok_row, g, all)
+  n_bins <- tapply(!is.na(estimate), g, sum)
+  (all_ok & n_bins >= N_BINS)[as.integer(g)]
+}
+
+# Long data: cm, outcome, subgroup, bin, estimate, N, inc
+simple_check <- function(data, min_cell = 10) {
+  keep <- gradient_passes(data, c("cm", "outcome", "subgroup"), data$estimate, data$N, min_cell)
+  label_bins(data[keep & !is.na(data$estimate), ])
+}
+
+# Wide data: cm, subgroup, bin, estimate_<o>, N_<o>, inc_<o> per outcome o
+complex_check <- function(data, outcomes, min_cell = 10) {
+  for (o in outcomes) {
+    est <- paste0("estimate_", o); n <- paste0("N_", o); inc <- paste0("inc_", o)
+    if (!est %in% names(data)) next
+    keep <- gradient_passes(data, c("cm", "subgroup"), data[[est]], data[[n]], min_cell)
+    for (col in intersect(c(est, n, inc), names(data))) data[[col]][!keep] <- NA
   }
-  return(data)
+  est_cols <- intersect(paste0("estimate_", outcomes), names(data))
+  data <- data[rowSums(!is.na(data[est_cols])) > 0, ]
+  data <- data[, colSums(!is.na(data)) > 0, drop = FALSE]   # drop empty columns
+  label_bins(data)
+}
+
+# BMI percentile gradients: cm, bin, N, inc, p10, p25, p50, p75, p90
+bmi_p_check <- function(data, min_cell = 10) {
+  pcols <- intersect(c("p10", "p25", "p50", "p75", "p90"), names(data))
+  # 1 + 3: every bin N >= min_cell and all bins present, per cm
+  keep <- gradient_passes(data, "cm", data$N, data$N, min_cell)
+  data <- data[keep, ]
+  # Kept from the old script: a percentile column is removed for a cm when
+  # any of its VALUES is below 10. This compares the BMI value itself (not a
+  # number of observations) with 10.
+  # TODO: confirm the intent -- plausibility check (BMI < 10) or a
+  # disclosure rule that was meant to use N?
+  for (p in pcols) {
+    low <- tapply(data[[p]] < 10, data$cm, any)
+    data[[p]][data$cm %in% names(low)[low %in% TRUE]] <- NA
+  }
+  data <- data[, colSums(!is.na(data)) > 0, drop = FALSE]
+  label_bins(data)
 }

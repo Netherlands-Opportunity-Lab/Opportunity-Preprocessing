@@ -1,0 +1,89 @@
+# Configuration for the JGZ (youth health care) pilot pipeline in src/jgz.
+#
+# All scripts in src/jgz are run from the repository root, e.g.
+#   setwd("H:/Opportunity-Preprocessing"); source("src/jgz/00_clean_and_merge.R")
+# and read this file with config::get(). Change paths here, not in the scripts.
+#
+# Paths below are the ones that were hard-coded in the scripts before the
+# 2026-10 rewrite (see git history for the old versions). Where the old
+# scripts used different folders for the same thing, the choice made is noted.
+
+default:
+  settings:
+    # --- 00_clean_and_merge.R -----------------------------------------------
+    # CBS stand-in hash for an empty child ID (confirmed with CBS, see
+    # archive/jgz_data_clean_merge.R). Rows in the ID file with this value
+    # are dropped. Set to "" to disable.
+    placeholder_hash: "07a6b530b148d85858a02420de14c297"
+
+    # Category-3 ("fill empty") variables that are strings: the Stata do-file
+    # fills with the first sorted value, which is "" whenever any row in the
+    # contact moment is empty -- i.e. it blanks real values instead of
+    # filling them. FALSE (default) fills with the group's non-empty value,
+    # as intended. TRUE reproduces the Stata behaviour exactly.
+    replicate_stata_string_fill: FALSE
+
+    # --- 02_create_excel_info_maps.R ------------------------------------------
+    # Minimum number of observations per published cell (CBS output rule).
+    min_cell: 10
+    # Coding of `geslacht` in the JGZ data (the 4-weeks block of the old
+    # script used 1/2; the other blocks compared against text labels, which
+    # never matched). Check with table(jgz$geslacht) and adjust if needed.
+    sex_boy: 1
+    sex_girl: 2
+    # BMI outlier rule: drop |z| > this, z computed within contact moment x sex
+    bmi_z_max: 5
+    # SDQ cut-offs
+    sdq_cutoffs: [11, 14]
+
+  file_locations:
+    # --- raw CBS microdata (00) ---------------------------------------------
+    id_file:      "L:/8151mcuniekCBKV2.SAV"
+    id_file_zonl: "L:/8151ZOrggroepOudeenNieuweLanduniekCBKV1.SAV"
+    health_file:  "L:/8151GezondheidsbestandxV2CBKV1.SAV"
+
+    # Working folder for intermediate files and the cleaning diagnostics.
+    # (The old 00 wrote to "H:/JGZ-Pilot-Data", "H:/JGZ-Data-Pilot" and
+    # "H:/JGZ-Pilot_Data" -- the first one is used here.)
+    work_folder:        "H:/JGZ-Pilot-Data"
+    descriptives_folder: "H:/JGZ-Pilot-Data/Descriptives Results"
+
+    # Final panel: one row per child (RIN) x age (leeftijd). Output of 00,
+    # input of 01.
+    panel_file: "H:/JGZ-Panel-Data/JGZ_panel.rds"
+
+    # --- address / postcode (01) -------------------------------------------
+    # Address history. Must cover the latest contact date in the JGZ data
+    # (2018 in the pilot).
+    gbaadres_file: "G:/Bevolking/GBAADRESOBJECTBUS/GBAADRESOBJECT2018BUSV1.dta"
+    # rinobjectnummer -> postcode lookup, produced outside R (see 01, step 3)
+    matched_postcode_file: "H:/JGZ-Pilot-Data/matched_postcode.dta"
+    # Panel with postcode at each contact moment. Output of 01, input of 02.
+    panel_postcode_file: "H:/JGZ-Pilot-Data/jgz_gba_postcode_data.rds"
+
+    # --- map tables (02) ----------------------------------------------------
+    # One .rds per contact moment (the old script wrote these to scratch/JGZ)
+    contact_moment_folder: "scratch/jgz"
+    # Excel workbooks with BMI / Wiechen / SDQ per PC3 and PC4. Output of 02,
+    # input of 05.
+    maps_folder: "H:/JGZ-Pilot-Data/Descriptives Results/excel-info-maps"
+
+    # --- gradients (03, 04) ---------------------------------------------------
+    # Folder with the gradient Excel output. The old 03 used
+    # "H:/Archive/Sonya/JGZ-Pilot-Data/Gradients Analysis Results" while 04
+    # and 05 used the folder below; one folder is used for all three now.
+    gradients_folder: "H:/JGZ-Pilot-Data/Gradients Analysis Results"
+
+    # --- final export bundle (05) -----------------------------------------
+    proportions_folder:  "H:/Archive/Sonya/JGZ pilot data/Proportions Results"
+    bereik_folder:       "H:/Archive/Sonya/JGZ pilot data/Bereik Regression Results"
+    export_descriptives_folder: "H:/Archive/Sonya/JGZ pilot data/Descriptives Results"
+    export_folder:       "H:/Archive/Sonya/Export JGZ"
+
+    # --- catchment area ---------------------------------------------------
+    # SQLite version of VSLPOSTCODEBUS (see catchment_area_calculations.R)
+    catchment_postcode_db: "G:/BouwenWonen/VSLPOSTCODEBUS/VSLPOSTCODEBUS2026031.db"
+    catchment_postcode_table: ""   # "" = use the only table in the .db
+    catchment_persoon_file: "G:/Bevolking/GBAPERSOONTAB/2017/geconverteerde data/GBAPERSOON2017TABV1.DTA"
+    catchment_adres_file:   "G:/Bevolking/GBAADRESOBJECTBUS/2017/geconverteerde data/GBAADRESOBJECT2017BUSV1.dta"
+    catchment_output:       "H:/JGZ-Pilot-Data/Descriptives Results/CatchmentArea.xlsx"

@@ -1,996 +1,573 @@
-#clean workspace
-rm(list=ls())
-options(scipen=999)
+# =============================================================================
+# JGZ pilot -- 00. Clean and merge
+#
+# R translation of the Stata do-file "20220330 JGZ DATA - CLEAN AND MERGE".
+# Builds a panel with one row per child (RINPERSOONS + RINPERSOON) per age in
+# days (leeftijd), combining the four health domains of the four JGZ
+# organisations.
+#
+#   Input : JGZ ID file, corrected ZONL ID file, JGZ health file (SPSS)
+#   Output: loc$panel_file (JGZ_panel.rds), plus cleaning diagnostics
+#           (descriptives, switch matrices, merge counts) in the work folder
+#
+# Steps
+#   1. ID file: combine with corrected ZONL file, drop rows without RIN,
+#      without Onderwerp, ambiguous duplicates and the CBS placeholder hash
+#   2. Health file: country names, upper case, destring, exact duplicates
+#   3. Within contact moment (org x child ID x domain x age): detect switches,
+#      write the FRANKENSTEIN file, treat variables by category, collapse
+#   4. Merge with the ID file (Icare-visus via Icare-overgewicht IDs)
+#   5. Within RIN x domain x age: switches, remove conflicts, collapse
+#   6. Across domains (RIN x age): switches, remove conflicts, final collapse
+#
+# Run from the repository root. Expected counts from the Stata log are
+# printed as "[OK]" / "[DIFFERS]" so a run can be checked against Stata.
+#
+# Differences from the Stata do-file (deliberate, see comments [Dx]):
+#   [D1] woonplaats is upper-cased from itself; the do-file has
+#        `replace woonplaats = upper(gem)` (typo).
+#   [D2] The gebl2-only country corrections are applied to gebl1 as well
+#        (only changes values that exist in gebl1).
+#   [D3] String "fill empty" variables are filled with the non-empty value
+#        unless cfg$replicate_stata_string_fill is TRUE (see config/jgz.yml).
+# =============================================================================
 
-library(haven) # read SPSS .sav files
-library(dplyr) # data manipulation, equivalent of most gen/replace/merge logic
-library(openxlsx)
-### OPEN AND SAVE FILES IN R FORMAT ### 
+source("src/jgz/jgz_helpers.R")
+suppressPackageStartupMessages({
+  library(haven)
+  library(openxlsx)
+})
+options(scipen = 999)
 
-# ID file
-id_file <- read_spss("L:/8151mcuniekCBKV2.SAV")
-saveRDS(id_file, "H:/JGZ-Pilot-Data/8151mcuniekCBKV2.rds")
+ensure_dir(loc$work_folder)
+ensure_dir(loc$descriptives_folder)
+ensure_dir(dirname(loc$panel_file))
 
-# ID file for ZONL
-id_zonl <- read_spss("L:/8151ZOrggroepOudeenNieuweLanduniekCBKV1.SAV")
-saveRDS(id_zonl, "H:/JGZ-Pilot-Data/8151ZOrggroepOudeenNieuweLanduniekCBKV1.rds")
 
-#Health_file
-health <- read_spss("L:/8151GezondheidsbestandxV2CBKV1.SAV")
-saveRDS(health, "H:/JGZ-Pilot-Data/8151GezondheidsbestandxV2CBKV1.rds")
+# ---- Helpers specific to this script -------------------------------------------
 
-### CLEAN ID FILE ###
+# Row counts in total and per organisation (columns of the descriptives tables)
+n_by_org <- function(df) {
+  out <- c(Total = nrow(df), setNames(rep(0, length(ORG_CODES)), names(ORG_CODES)))
+  tab <- table(factor(df$org, levels = ORG_CODES, labels = names(ORG_CODES)))
+  out[names(tab)] <- as.vector(tab)
+  out
+}
 
-# Combine original ID file with corrected ZONL id file
+# Five rows: all + one per domain
+n_by_org_domain <- function(df) {
+  rows <- lapply(DOMAIN_CODES, function(d) n_by_org(df[df$databestand %in% d, ]))
+  do.call(rbind, c(list(All = n_by_org(df)), rows))
+}
 
-# (1) prepare ZONL ID file
+write_matrix <- function(m, file, sheet) {
+  wb <- createWorkbook()
+  addWorksheet(wb, sheet)
+  writeData(wb, sheet, m, rowNames = TRUE)
+  saveWorkbook(wb, file, overwrite = TRUE)
+}
+
+# Switch detection (Stata lines 588-745 and the two later passes).
+#
+# Within each group the do-file sorts a variable and flags a row when its value
+# differs from the previous row:
+#   "with missings"    -- a change between a missing and a real value counts
+#   "without missings" -- only a change between two real values counts
+# For a group with k distinct real values, these flags add up to
+#   with missings:    (k - 1) + 1 if the group has both missing and real values
+#   without missings: (k - 1)
+# so they are computed directly from k. (The old R translation compared with
+# `!=`, which returns NA next to a missing value; that silently dropped the
+# missing<->value changes for numeric variables.)
+#
+# Returns the group id per row, per-group flags for every variable
+# (max_f = any switch, max_f_n = a genuine conflict) and the 8-column
+# "variations" matrix from the do-file.
+detect_switches <- function(df, vars, keys) {
+  g <- group_id(df, keys)
+  n_groups <- max(g)
+  group_size <- tabulate(g, n_groups)
+
+  max_f <- list()
+  max_f_n <- list()
+  stats <- matrix(NA_real_, nrow = length(vars), ncol = 8, dimnames = list(vars, c(
+    "N", "Unique contact moments (N)",
+    "Switches (with missings)", "CMs switches (with missings)", "Rows affected (with)",
+    "Switches (without missings)", "CMs switches (without missings)", "Rows affected (without)"
+  )))
+
+  for (v in vars) {
+    x <- df[[v]]
+    miss <- is_blank(x)
+    g_real <- g[!miss]
+    code <- match(x[!miss], unique(x[!miss]))
+    pair <- (as.numeric(g_real) - 1) * (max(c(code, 0L)) + 1) + code
+    k <- tabulate(g_real[!duplicated(pair)], n_groups)    # distinct real values
+    has_real <- tabulate(g_real, n_groups) > 0
+    has_miss <- tabulate(g[miss], n_groups) > 0
+    mixed <- has_real & has_miss
+
+    sw_n <- pmax(k - 1, 0)
+    sw   <- sw_n + mixed
+    max_f[[v]]   <- sw > 0
+    max_f_n[[v]] <- sw_n > 0
+
+    stats[v, ] <- c(
+      sum(!miss), sum(has_real),
+      sum(sw),   sum(max_f[[v]]),   sum(group_size[max_f[[v]]]),
+      sum(sw_n), sum(max_f_n[[v]]), sum(group_size[max_f_n[[v]]])
+    )
+  }
+  list(g = g, n_groups = n_groups, max_f = max_f, max_f_n = max_f_n, table = stats)
+}
+
+# Replace genuine conflicts by NA (numbers) or ".r" (strings) -- Stata's
+# `replace var = .r if max_f_n_var == 1`. The paired "fill" step is commented
+# out in the do-file at the places where this is used, so no filling here.
+remove_conflicts <- function(df, vars, sw) {
+  for (v in intersect(vars, names(df))) {
+    conflict <- sw$max_f_n[[v]][sw$g]
+    if (is.character(df[[v]])) df[[v]][conflict] <- REMOVED else df[[v]][conflict] <- NA
+  }
+  df
+}
+
+
+# =============================================================================
+# 1. ID FILE
+# =============================================================================
+
+id_file <- read_spss(loc$id_file)
+id_zonl <- read_spss(loc$id_file_zonl)
+saveRDS(id_file, work_path("8151mcuniekCBKV2.rds"))
+saveRDS(id_zonl, work_path("8151ZOrggroepOudeenNieuweLanduniekCBKV1.rds"))
+
+# Corrected ZONL file replaces the ZONL rows (bestand 2) of the original file
 zonl_prepared <- id_zonl %>%
-  mutate(bestand = "2") %>%
-  rename(KindNummer_crypt = kindnummer_crypt)
-saveRDS(zonl_prepared, "H:/JGZ-Pilot-Data/81851ZONL_ID_prepared_for_cleaning.dta")
-# (2) Open original ID file, drop old ZONL, append corrected ZONL
+  zap_labels() %>%
+  rename(KindNummer_crypt = kindnummer_crypt) %>%
+  mutate(bestand = 2)
+
 id_combined <- id_file %>%
-  mutate(bestand = as.character(bestand)) %>%
-  filter(bestand != "2") %>%    #drop is bestand is not 2
+  zap_labels() %>%
+  mutate(bestand = as.numeric(bestand)) %>%
+  filter(is.na(bestand) | bestand != 2) %>%   # Stata: drop if bestand == "2"
   bind_rows(zonl_prepared)
+
+# Organisation (bestand 1-4 -> org 6/7/10/12) and health domain. Onderwerp is
+# PERMUTED onto databestand (1->1, 4->2, 2->3, 3->4) following the
+# aanleverprocedure; a mistake here would mislabel whole domains.
 id_combined <- id_combined %>%
-  mutate(bestand = as.numeric(bestand))  #destring bestand, replace
-
-### GENERATE AND LABEL VARIABLES ###
-
-#Organizations
-id_combined <- id_combined %>%
-  mutate(org = case_when(
-    bestand == 1 ~ 6,
-    bestand == 2 ~ 7,
-    bestand == 3 ~ 10,
-    bestand == 4 ~ 12,
-    TRUE ~ NA_real_
-  ))
-
-id_combined$org <- factor(
-  id_combined$org,
-  levels = c(6, 7, 10, 12),
-  labels = c("LimburgNoord", "ZONL", "Verian", "Icare")
-)
-
-#Onderwerp - info comes from aanleverprocedure
-id_combined <- id_combined %>%
-  mutate(databestand_num = case_when(
-    Onderwerp == 1 ~ 1,
-    Onderwerp == 4 ~ 2,
-    Onderwerp == 2 ~ 3, 
-    Onderwerp == 3 ~ 4,
-    TRUE ~ NA_real_
-  ))
-
-id_combined$databestand <- factor(
-  id_combined$databestand_num,
-  levels = c(1, 2, 3, 4), 
-  labels = c("overgewicht", "visus", "psychosociaal", "spraak-taal")
-)
-
-
-### DESCRIPTIVES: SAMPLE SIZE TRACKING THROUGH CLEANING ###
-
-descriptive <- matrix(NA_real_, nrow = 11, ncol = 5)
-colnames(descriptive) <- c("Total", "LimburgNoord", "ZONL", "Verian", "Icare")
-rownames(descriptive) <- c(
-  "All", "overgewicht", "visus", "psychosociaal", "spraak-taal",
-  "Missing-RIN",
-  "All", "overgewicht", "visus", "psychosociaal", "spraak-taal"
-)
-
-#Lines in Data Before Cleaning
-descriptive[1, "Total"] <- nrow(id_combined)
-
-org_counts <- table(id_combined$org)
-descriptive[1, names(org_counts)] <- org_counts
-
-#BY Onderwerp
-for (d in 1:4) {
-  sub <- id_combined %>% filter(databestand_num == d)
-  descriptive[1 + d, "Total"] <- nrow(sub)
-  org_n <- table(sub$org)
-  descriptive[1 + d, names(org_n)] <- org_n
-}
-print(descriptive)
-
-
-#### START OF DATA CLEANING ###
-
-##missing observations
-#RIN
-missing_rin <- id_combined %>% filter(RINPERSOONS == "" & RINPERSOON == "")
-descriptive[6, "Total"] <- nrow(missing_rin)
-descriptive[6, names(table(missing_rin$org))] <- table(missing_rin$org)
-
-id_combined <- id_combined %>%
-  filter(!(RINPERSOONS == "" & RINPERSOON == ""))
-
-#onderwerp
-table(id_combined$org[is.na(id_combined$Onderwerp)]) #all missing onderwerp come from Icare
-
-id_combined <- id_combined %>%
-  group_by(RINPERSOONS, RINPERSOON, KindNummer_crypt, bestand, org) %>%
   mutate(
-    dup_icare = if_else(org == "Icare", as.integer(n() > 1), NA_integer_)
-    ) %>%
-  ungroup()
+    org = unname(ORG_CODES[bestand]),
+    databestand = case_when(
+      Onderwerp == 1 ~ 1,
+      Onderwerp == 4 ~ 2,
+      Onderwerp == 2 ~ 3,
+      Onderwerp == 3 ~ 4
+    )
+  )
+# org and databestand stay numeric (as in Stata): they are merge keys and are
+# collapsed with (max) later. Labels are only added in the output tables.
 
-table(id_combined$dup_icare[id_combined$org == "icare" & is.na(id_combined$Onderwerp)])
-table(id_combined$dup_icare[id_combined$org == "icare" & !is.na(id_combined$Onderwerp)])
+descriptive <- rbind(n_by_org_domain(id_combined), `Missing-RIN` = NA)
 
-#Conclusion: safe to remove these 456 lines
-id_combined <- id_combined %>% filter(!is.na(Onderwerp))
+# --- Rows without RIN cannot be linked to other CBS data ----------------------
+missing_rin <- is_blank(id_combined$RINPERSOONS) & is_blank(id_combined$RINPERSOON)
+descriptive["Missing-RIN", ] <- n_by_org(id_combined[missing_rin, ])
+id_combined <- id_combined[!missing_rin, ]
+check_n(nrow(id_combined), 320669, "ID file rows after dropping missing RIN")
 
-##duplicates
-# Child IDs alone are not unique: 
-sum(duplicated(id_combined$KindNummer_crypt))
+# --- Rows without Onderwerp ----------------------------------------------------
+# All come from Icare, and all are duplicates of Icare rows that do have an
+# Onderwerp (checked in the do-file), so they can be dropped.
+no_onderwerp <- is.na(id_combined$Onderwerp)
+print(table(org = id_combined$org[no_onderwerp]))
+id_combined <- id_combined[!no_onderwerp, ]
+check_n(sum(no_onderwerp), 456, "ID rows without Onderwerp dropped")
 
-#But almost unique by child ID + organization (bestand) + Onderwerp
-sum(duplicated(id_combined[, c("KindNummer_crypt", "bestand", "Onderwerp")]))
+# --- Ambiguous duplicates ------------------------------------------------------------
+# Child ID is unique within organisation x Onderwerp, except for a few rows with
+# the same child ID but a different RIN. These cannot be matched to the
+# health file unambiguously, so all copies are dropped.
+dup_key <- id_combined[, c("KindNummer_crypt", "bestand", "Onderwerp")]
+is_dup <- duplicated(dup_key) | duplicated(dup_key, fromLast = TRUE)
+id_combined <- id_combined[!is_dup, ]
+check_n(sum(is_dup), 12, "ambiguous ID duplicates dropped")
 
-id_combined <- id_combined %>% 
-  group_by(KindNummer_crypt, bestand, Onderwerp) %>%
-  mutate(dup = n() > 1) %>%
-  ungroup() %>%
-  arrange(KindNummer_crypt, bestand, Onderwerp)
-
-View(id_combined %>% filter(dup))
-# 12 obs share child ID + Bestand + Onderwerp, impossible to uniquely match on the health_file, so dropped
-id_combined <- id_combined %>% filter(!dup)
-
-### LINES IN DATA AFTER CLEANING ###
-
-#total
-descriptive[7, "Total"] <- nrow(id_combined)
-org_counts_after <- table(id_combined$org)
-descriptive[7, names(org_counts_after)] <- org_counts_after
-print(descriptive)
-
-for (domain in levels(id_combined$databestand)) {
-  d <- id_combined %>% filter(databestand == domain)
-  row_idx <- 7 + which(levels(id_combined$databestand) == domain)
-  descriptive[row_idx, "Total"] <- nrow(d)
-  org_n <- table(d$org)
-  descriptive[row_idx, names(org_n)] <- org_n
+# --- CBS placeholder hash ------------------------------------------------------------
+# CBS fills an empty uploaded child ID with one fixed hash; it is not a child.
+if (nzchar(cfg$placeholder_hash)) {
+  is_placeholder <- id_combined$KindNummer_crypt %in% cfg$placeholder_hash
+  message(sprintf("ID rows with the CBS placeholder hash dropped: %d", sum(is_placeholder)))
+  id_combined <- id_combined[!is_placeholder, ]
 }
+
+descriptive <- rbind(descriptive, n_by_org_domain(id_combined))
 print(descriptive)
+write_matrix(descriptive, file.path(loc$descriptives_folder, "IDfile_descriptives.xlsx"),
+             "descriptive")
 
-#Write descriptive matrix to Excel
-wb <- createWorkbook()
-addWorksheet(wb, "descriptive")
-writeData(wb, "descriptive", descriptive, rowNames = TRUE)
-saveWorkbook(wb, "H:/JGZ-Pilot-Data/Descriptives Results/IDfile_descriptives.xlsx", overwrite = TRUE)
+saveRDS(id_combined, work_path("IDfile_clean_all.rds"))
+# Icare-overgewicht IDs are used to link Icare-visus (step 4)
+icare_overgewicht_ids <- id_combined %>%
+  filter(org == ORG_CODES[["Icare"]], databestand == DOMAIN_CODES[["overgewicht"]])
+saveRDS(icare_overgewicht_ids, work_path("IDfile_clean_Icare_overgewicht.rds"))
 
-### SAVE CLEANED DATA FOR MERGES WITH HEALTH DATA ###
 
-id_combined <- id_combined %>% select(-dup, -dup_icare)
-#save all data
-saveRDS(id_combined, "H:/JGZ-Pilot-Data/IDfile_clean_all.rds")
-#save only icare overgewicht
-icare_overgewicht <- id_combined %>%
-  filter(org == "Icare", databestand == "overgewicht")
-saveRDS(icare_overgewicht, "H:/JGZ-Pilot-Data/IDfile_clean_Icare_overgewicht.rds")
+# =============================================================================
+# 2. HEALTH FILE
+# =============================================================================
 
-### CLEAN HEALTH FILE ###
+health <- read_spss(loc$health_file)
+saveRDS(health, work_path("8151GezondheidsbestandxV2CBKV1.rds"))
 
 health_clean <- health %>%
+  zap_labels() %>%
   arrange(org, KindNummer_crypt, databestand, leeftijd)
+rm(health)
 
-health_clean <- health_clean %>%
-  mutate(gebl1 = case_when(
-    gebl1 == "Afganistan" ~ "Afghanistan",
-    gebl1 == "Albani?" ~ "Albanië",
-    gebl1 == "Argentini?" ~ "Argentinië",
-    gebl1 == "Armeni?" ~ "Armenië",
-    gebl1 == "Australi?" ~ "Australië",
-    gebl1 == "Azerbajdsjan" ~ "Azerbeidzjan",
-    gebl1 == "Belarus(Wit-Rusland)" ~ "Belarus (Wit-Rusland)",
-    gebl1 == "Belgi?" ~ "België",
-    gebl1 == "Bondsrepubliek Duitsland" ~ "Duitsland",
-    gebl1 == "Bosni?-Herzegovina" ~ "Bosnië-Herzegovina",
-    gebl1 == "Bosni?-Herzegowina" ~ "Bosnië-Herzegovina",
-    gebl1 == "Brazili?" ~ "Brazilië",
-    gebl1 == "Brits Somaliland" ~ "Somalië",
-    gebl1 == "Burger van Montenegro" ~ "Montenegro",
-    gebl1 == "Ceylon" ~ "Sri Lanka",
-    gebl1 == "Cura?ao" ~ "Curaçao",
-    gebl1 == "Duitsland (oud)" ~ "Duitsland",
-    gebl1 == "Ethiopi?" ~ "Ethiopië",
-    gebl1 == "Etiopi?" ~ "Ethiopië",
-    gebl1 == "Etiopië" ~ "Ethiopië",
-    gebl1 == "Frans Guyana" ~ "Frans-Guyana",
-    gebl1 == "Georgi?" ~ "Georgië",
-    gebl1 == "Groot-Brittanni?" ~ "Groot-Brittannië",
-    gebl1 == "Grootbrittanni?" ~ "Groot-Brittannië",
-    gebl1 == "Grootbrittannië" ~ "Groot-Brittannië",
-    gebl1 == "Ha?ti" ~ "Haïti",
-    gebl1 == "Indonesi?" ~ "Indonesië",
-    gebl1 == "Isra?l" ~ "Israël",
-    gebl1 == "Itali?" ~ "Italië",
-    gebl1 == "Joegoslavi?" ~ "Joegoslavië",
-    gebl1 == "Jordani?" ~ "Jordanië",
-    gebl1 == "Kaapverdi?" ~ "Kaapverdië",
-    gebl1 == "Katar" ~ "Qatar",
-    gebl1 == "Kroati?" ~ "Kroatië",
-    gebl1 == "Libi?" ~ "Libië",
-    gebl1 == "Macedoni?" ~ "Macedonië",
-    gebl1 == "Madagascar" ~ "Madagaskar",
-    gebl1 == "Maleisi?" ~ "Maleisië",
-    gebl1 == "Mauritani?" ~ "Mauritanië",
-    gebl1 == "Moldavi?" ~ "Moldavië",
-    gebl1 == "Mongoli?" ~ "Mongolië",
-    gebl1 == "Namibi?" ~ "Namibië",
-    gebl1 == "Nederlands Indi?" ~ "Nederlands Indië",
-    gebl1 == "NederlandsIndi?" ~ "Nederlands Indië",
-    gebl1 == "Nieuw Zeeland" ~ "Nieuw-Zeeland",
-    gebl1 == "Nieuwzeeland" ~ "Nieuw-Zeeland",
-    gebl1 == "Noordjemen" ~ "Jemen",
-    gebl1 == "Noordkorea" ~ "Noord-Korea",
-    gebl1 == "Noordvi?tnam" ~ "Viëtnam",
-    gebl1 == "Oekra?ne" ~ "Oekraïne",
-    gebl1 == "Oostduitse" ~ "Duitse Democratische Republiek",
-    gebl1 == "Roemeni?" ~ "Roemenië",
-    gebl1 == "Rusland (oud)" ~ "Rusland",
-    gebl1 == "Rusland(oud)" ~ "Rusland",
-    gebl1 == "Saoedi-Arabi?" ~ "Saoedi-Arabië",
-    gebl1 == "Saoediarabi?" ~ "Saoedi-Arabië",
-    gebl1 == "Saoediarabië" ~ "Saoedi-Arabië",
-    gebl1 == "Servi?" ~ "Servië",
-    gebl1 == "Servi? en Montenegro" ~ "Servië en Montenegro",
-    gebl1 == "Sloveni?" ~ "Slovenië",
-    gebl1 == "Slovakije" ~ "Slowakije",
-    gebl1 == "Somali?" ~ "Somalië",
-    gebl1 == "Somalia" ~ "Somalië",
-    gebl1 == "Sovjetunie" ~ "Sovjet-Unie",
-    gebl1 == "Syri?" ~ "Syrië",
-    gebl1 == "Tha?land" ~ "Thailand",
-    gebl1 == "Tsjechi?" ~ "Tsjechië",
-    gebl1 == "Tsjeschiische Republiek" ~ "Tsjechië",
-    gebl1 == "Tsjechoslowakije" ~ "Tsjecho-Slowakije",
-    gebl1 == "Tunesi?" ~ "Tunesië",
-    gebl1 == "Vi?tnam" ~ "Viëtnam",
-    gebl1 == "Za?re" ~ "Zaïre",
-    gebl1 == "Zambi?" ~ "Zambia",
-    gebl1 == "Zuid Korea" ~ "Zuid-Korea",
-    gebl1 == "Zuid-Jemen" ~ "Jemen",
-    gebl1 == "Zuidafrika" ~ "Zuid-Afrika",
-    gebl1 == "Zuidjemen" ~ "Jemen",
-    gebl1 == "Zuidkorea" ~ "Zuid-Korea",
-    gebl1 == "Zuidvi?tnam" ~ "Viëtnam",
-    gebl1 == "Zuidwest Afrika" ~ "Namibië",
-    TRUE ~ gebl1
-  ))
+stopifnot(all(health_clean$org %in% ORG_CODES),
+          all(health_clean$databestand %in% DOMAIN_CODES))
 
-health_clean <- health_clean %>%
-  mutate(gebl2 = case_when(
-    gebl2 == "Afganistan" ~ "Afghanistan",
-    gebl2 == "Albani?" ~ "Albanië",
-    gebl2 == "Argentini?" ~ "Argentinië",
-    gebl2 == "Armeni?" ~ "Armenië",
-    gebl2 == "Australi?" ~ "Australië",
-    gebl2 == "Azerbajdsjan" ~ "Azerbeidzjan",
-    gebl2 == "Belarus(Wit-Rusland)" ~ "Belarus (Wit-Rusland)",
-    gebl2 == "Belgi?" ~ "België",
-    gebl2 == "Bondsrepubliek Duitsland" ~ "Duitsland",
-    gebl2 == "Bosni?-Herzegovina" ~ "Bosnië-Herzegovina",
-    gebl2 == "Bosni?-Herzegowina" ~ "Bosnië-Herzegovina",
-    gebl2 == "Brazili?" ~ "Brazilië",
-    gebl2 == "Brits Somaliland" ~ "Somalië",
-    gebl2 == "Burger van Montenegro" ~ "Montenegro",
-    gebl2 == "Ceylon" ~ "Sri Lanka",
-    gebl2 == "Cura?ao" ~ "Curaçao",
-    gebl2 == "Duitsland (oud)" ~ "Duitsland",
-    gebl2 == "Ethiopi?" ~ "Ethiopië",
-    gebl2 == "Etiopi?" ~ "Ethiopië",
-    gebl2 == "Etiopië" ~ "Ethiopië",
-    gebl2 == "Frans Guyana" ~ "Frans-Guyana",
-    gebl2 == "Georgi?" ~ "Georgië",
-    gebl2 == "Groot-Brittanni?" ~ "Groot-Brittannië",
-    gebl2 == "Grootbrittanni?" ~ "Groot-Brittannië",
-    gebl2 == "Grootbrittannië" ~ "Groot-Brittannië",
-    gebl2 == "Ha?ti" ~ "Haïti",
-    gebl2 == "Indonesi?" ~ "Indonesië",
-    gebl2 == "Isra?l" ~ "Israël",
-    gebl2 == "Itali?" ~ "Italië",
-    gebl2 == "Joegoslavi?" ~ "Joegoslavië",
-    gebl2 == "Jordani?" ~ "Jordanië",
-    gebl2 == "Kaapverdi?" ~ "Kaapverdië",
-    gebl2 == "Katar" ~ "Qatar",
-    gebl2 == "Kroati?" ~ "Kroatië",
-    gebl2 == "Libi?" ~ "Libië",
-    gebl2 == "Macedoni?" ~ "Macedonië",
-    gebl2 == "Madagascar" ~ "Madagaskar",
-    gebl2 == "Maleisi?" ~ "Maleisië",
-    gebl2 == "Mauritani?" ~ "Mauritanië",
-    gebl2 == "Moldavi?" ~ "Moldavië",
-    gebl2 == "Mongoli?" ~ "Mongolië",
-    gebl2 == "Namibi?" ~ "Namibië",
-    gebl2 == "Nederlands Indi?" ~ "Nederlands Indië",
-    gebl2 == "NederlandsIndi?" ~ "Nederlands Indië",
-    gebl2 == "Nieuw Zeeland" ~ "Nieuw-Zeeland",
-    gebl2 == "Nieuwzeeland" ~ "Nieuw-Zeeland",
-    gebl2 == "Noordjemen" ~ "Jemen",
-    gebl2 == "Noordkorea" ~ "Noord-Korea",
-    gebl2 == "Noordvi?tnam" ~ "Viëtnam",
-    gebl2 == "Oekra?ne" ~ "Oekraïne",
-    gebl2 == "Oostduitse" ~ "Duitse Democratische Republiek",
-    gebl2 == "Roemeni?" ~ "Roemenië",
-    gebl2 == "Rusland (oud)" ~ "Rusland",
-    gebl2 == "Rusland(oud)" ~ "Rusland",
-    gebl2 == "Saoedi-Arabi?" ~ "Saoedi-Arabië",
-    gebl2 == "Saoediarabi?" ~ "Saoedi-Arabië",
-    gebl2 == "Saoediarabië" ~ "Saoedi-Arabië",
-    gebl2 == "Servi?" ~ "Servië",
-    gebl2 == "Servi? en Montenegro" ~ "Servië en Montenegro",
-    gebl2 == "Sloveni?" ~ "Slovenië",
-    gebl2 == "Slovakije" ~ "Slowakije",
-    gebl2 == "Somali?" ~ "Somalië",
-    gebl2 == "Somalia" ~ "Somalië",
-    gebl2 == "Sovjetunie" ~ "Sovjet-Unie",
-    gebl2 == "Syri?" ~ "Syrië",
-    gebl2 == "Tha?land" ~ "Thailand",
-    gebl2 == "Tsjechi?" ~ "Tsjechië",
-    gebl2 == "Tsjeschiische Republiek" ~ "Tsjechië",
-    gebl2 == "Tsjechoslowakije" ~ "Tsjecho-Slowakije",
-    gebl2 == "Tunesi?" ~ "Tunesië",
-    gebl2 == "Vi?tnam" ~ "Viëtnam",
-    gebl2 == "Za?re" ~ "Zaïre",
-    gebl2 == "Zambi?" ~ "Zambia",
-    gebl2 == "Zuid Korea" ~ "Zuid-Korea",
-    gebl2 == "Zuid-Jemen" ~ "Jemen",
-    gebl2 == "Zuidafrika" ~ "Zuid-Afrika",
-    gebl2 == "Zuidjemen" ~ "Jemen",
-    gebl2 == "Zuidkorea" ~ "Zuid-Korea",
-    gebl2 == "Zuidvi?tnam" ~ "Viëtnam",
-    gebl2 == "Zuidwest Afrika" ~ "Namibië",
-    gebl2 == "Abessinië" ~ "Ethiopië",
-    gebl2 == "Abessini?" ~ "Ethiopië",
-    gebl2 == "Centafrika" ~ "Centraal-Afrikaanse Republiek",
-    gebl2 == "Centrafrika" ~ "Centraal-Afrikaanse Republiek",
-    gebl2 == "Faer?er" ~ "Faröer",
-    gebl2 == "Federale Republiek Joegoslavi?" ~ "Joegoslavië",
-    gebl2 == "Oekraine" ~ "Oekraïne",
-    gebl2 == "Rhodesi?" ~ "Zimbabwe",
-    gebl2 == "Rhodesië" ~ "Zimbabwe",
-    gebl2 == "Russische Federatie" ~ "Rusland",
-    TRUE ~ gebl2
-  ))
-
-### SET ALL STRINGS TO CAPITALS ONLY ###
-
-health_clean <- health_clean %>%
-  mutate(
-    gem        = toupper(gem),
-    woonplaats = toupper(woonplaats), #differs grom cbs script
-    gebl1      = toupper(gebl1),
-    gebl2      = toupper(gebl2)
-  )
-
-### DESTRING VARIABLES THAT ARE STORED AS STRING BUT ARE NUMERIC ###
-
-notnumeric_postcode <- health_clean %>%
-  filter(is.na(suppressWarnings((as.numeric(postcode)))))
-health_clean <- health_clean %>%
-  mutate(postcode = suppressWarnings(as.numeric(postcode)))
-
-health_clean <- health_clean %>%
-  mutate(
-    geslacht = suppressWarnings(as.numeric(as.character(geslacht))),
-    i_jgz    = suppressWarnings(as.numeric(as.character(i_jgz))),
-    opl1     = suppressWarnings(as.numeric(as.character(opl1))),
-    opl2     = suppressWarnings(as.numeric(as.character(opl2))),
-    i_cm     = suppressWarnings(as.numeric(as.character(i_cm))),
-    bst_nl   = suppressWarnings(as.numeric(as.character(bst_nl)))
-  )
-
-### HEALTH FILE DISCRIPTIVE: LINES IN DATA BEFORE CLEANING ###
-
-descriptive_health <- matrix(NA_real_, nrow  = 11, ncol = 5)
-colnames(descriptive_health) <- c("Total", "LimburgNoord", "ZONL", "Verian", "Icare")
-rownames(descriptive_health) <- c(
-  "All", "Overgewicht", "Visus", "Psychosociaal", "Spraak-taal",
-  "All-Duplicates",
-  "All", "Overgewicht", "Visus", "Psychosociaal", "Spraak-taal"
+# --- Country names (gebl1, gebl2) ------------------------------------------------
+# Encoding-damaged and old/variant spellings -> one spelling. Accented
+# characters are written as \u escapes so the file works in any encoding.
+country_fix <- c(
+  "Afganistan" = "Afghanistan", "Albani?" = "Albani\u00eb",
+  "Argentini?" = "Argentini\u00eb", "Armeni?" = "Armeni\u00eb",
+  "Australi?" = "Australi\u00eb", "Azerbajdsjan" = "Azerbeidzjan",
+  "Belarus(Wit-Rusland)" = "Belarus (Wit-Rusland)", "Belgi?" = "Belgi\u00eb",
+  "Bondsrepubliek Duitsland" = "Duitsland",
+  "Bosni?-Herzegovina" = "Bosni\u00eb-Herzegovina",
+  "Bosni?-Herzegowina" = "Bosni\u00eb-Herzegovina", "Brazili?" = "Brazili\u00eb",
+  "Brits Somaliland" = "Somali\u00eb", "Burger van Montenegro" = "Montenegro",
+  "Ceylon" = "Sri Lanka", "Cura?ao" = "Cura\u00e7ao", "Duitsland (oud)" = "Duitsland",
+  "Ethiopi?" = "Ethiopi\u00eb", "Etiopi?" = "Ethiopi\u00eb", "Etiopi\u00eb" = "Ethiopi\u00eb",
+  "Frans Guyana" = "Frans-Guyana", "Georgi?" = "Georgi\u00eb",
+  "Groot-Brittanni?" = "Groot-Brittanni\u00eb", "Grootbrittanni?" = "Groot-Brittanni\u00eb",
+  "Grootbrittanni\u00eb" = "Groot-Brittanni\u00eb", "Ha?ti" = "Ha\u00efti",
+  "Indonesi?" = "Indonesi\u00eb", "Isra?l" = "Isra\u00ebl", "Itali?" = "Itali\u00eb",
+  "Joegoslavi?" = "Joegoslavi\u00eb", "Jordani?" = "Jordani\u00eb",
+  "Kaapverdi?" = "Kaapverdi\u00eb", "Katar" = "Qatar", "Kroati?" = "Kroati\u00eb",
+  "Libi?" = "Libi\u00eb", "Macedoni?" = "Macedoni\u00eb", "Madagascar" = "Madagaskar",
+  "Maleisi?" = "Maleisi\u00eb", "Mauritani?" = "Mauritani\u00eb",
+  "Moldavi?" = "Moldavi\u00eb", "Mongoli?" = "Mongoli\u00eb", "Namibi?" = "Namibi\u00eb",
+  "Nederlands Indi?" = "Nederlands Indi\u00eb", "NederlandsIndi?" = "Nederlands Indi\u00eb",
+  "Nieuw Zeeland" = "Nieuw-Zeeland", "Nieuwzeeland" = "Nieuw-Zeeland",
+  "Noordjemen" = "Jemen", "Noordkorea" = "Noord-Korea", "Noordvi?tnam" = "Vi\u00ebtnam",
+  "Oekra?ne" = "Oekra\u00efne", "Oostduitse" = "Duitse Democratische Republiek",
+  "Roemeni?" = "Roemeni\u00eb", "Rusland (oud)" = "Rusland", "Rusland(oud)" = "Rusland",
+  "Saoedi-Arabi?" = "Saoedi-Arabi\u00eb", "Saoediarabi?" = "Saoedi-Arabi\u00eb",
+  "Saoediarabi\u00eb" = "Saoedi-Arabi\u00eb", "Servi?" = "Servi\u00eb",
+  "Servi? en Montenegro" = "Servi\u00eb en Montenegro", "Sloveni?" = "Sloveni\u00eb",
+  "Slovakije" = "Slowakije", "Somali?" = "Somali\u00eb", "Somalia" = "Somali\u00eb",
+  "Sovjetunie" = "Sovjet-Unie", "Syri?" = "Syri\u00eb", "Tha?land" = "Thailand",
+  "Tsjechi?" = "Tsjechi\u00eb", "Tsjeschiische Republiek" = "Tsjechi\u00eb",
+  "Tsjechoslowakije" = "Tsjecho-Slowakije", "Tunesi?" = "Tunesi\u00eb",
+  "Vi?tnam" = "Vi\u00ebtnam", "Za?re" = "Za\u00efre", "Zambi?" = "Zambia",
+  "Zuid Korea" = "Zuid-Korea", "Zuid-Jemen" = "Jemen", "Zuidafrika" = "Zuid-Afrika",
+  "Zuidjemen" = "Jemen", "Zuidkorea" = "Zuid-Korea", "Zuidvi?tnam" = "Vi\u00ebtnam",
+  "Zuidwest Afrika" = "Namibi\u00eb",
+  # In the do-file only applied to gebl2 [D2]
+  "Abessini\u00eb" = "Ethiopi\u00eb", "Abessini?" = "Ethiopi\u00eb",
+  "Centafrika" = "Centraal-Afrikaanse Republiek",
+  "Centrafrika" = "Centraal-Afrikaanse Republiek", "Faer?er" = "Far\u00f6er",
+  "Federale Republiek Joegoslavi?" = "Joegoslavi\u00eb", "Oekraine" = "Oekra\u00efne",
+  "Rhodesi?" = "Zimbabwe", "Rhodesi\u00eb" = "Zimbabwe", "Russische Federatie" = "Rusland"
 )
-health_clean$org <- factor(
-  health_clean$org,
-  levels = c(6, 7, 10, 12), 
-  labels = c("LimburgNoord", "ZONL", "Verian", "Icare")
-)
-
-#Total
-descriptive_health[1, "Total"] <- nrow(health_clean)
-org_counts_health <- table(health_clean$org)
-descriptive_health[1, names(org_counts_health)] <- org_counts_health
-
-#By Onderwerp
-for (d in 1:4) {
-  sub <- health_clean %>% filter(databestand == d)
-  descriptive_health[1 + d, "Total"] <- nrow(sub)
-  org_n <- table(sub$org)
-  descriptive_health[1 + d, names(org_n)] <- org_n
+fix_country <- function(x) {
+  hit <- x %in% names(country_fix)
+  x[hit] <- unname(country_fix[x[hit]])
+  x
 }
-print(descriptive_health)
-
-#check and clean duplicates on all variables
-
-dup_check_vars <- setdiff(names(health_clean), "dubbel")
 
 health_clean <- health_clean %>%
-  group_by(across(all_of(dup_check_vars))) %>%
-  mutate(.dup_count = row_number()) %>%
-  ungroup()
+  mutate(
+    gebl1      = toupper(fix_country(gebl1)),
+    gebl2      = toupper(fix_country(gebl2)),
+    gem        = toupper(gem),
+    woonplaats = toupper(woonplaats)          # [D1]
+  )
 
-n_before <-  nrow(health_clean)
-health_clean <- health_clean %>% filter(.dup_count == 1) %>% select(-.dup_count)
-n_after <- nrow(health_clean)
+# --- Destring ----------------------------------------------------------------------
+# Stata `destring, force`: values that are not numbers become missing.
+to_num <- function(x) suppressWarnings(as.numeric(as.character(x)))
+non_numeric_pc <- !is_blank(health_clean$postcode) & is.na(to_num(health_clean$postcode))
+message(sprintf("Non-numeric postcodes set to missing: %d", sum(non_numeric_pc)))
+health_clean <- health_clean %>%
+  mutate(across(any_of(c("postcode", "geslacht", "i_jgz", "opl1", "opl2", "i_cm", "bst_nl")),
+                to_num))
 
-message(sprintf("Dropped %d exact-duplicate rows (source do-file: 3,166)", n_before - n_after))
+descriptive_health <- rbind(n_by_org_domain(health_clean), `All-Duplicates` = NA)
+
+# --- Exact duplicates (all variables except `dubbel`) ----------------------------------
+dup_check_vars <- setdiff(names(health_clean), "dubbel")
+exact_dup <- duplicated(health_clean[, dup_check_vars])
+descriptive_health["All-Duplicates", ] <- n_by_org(health_clean[exact_dup, ])
+health_clean <- health_clean[!exact_dup, ]
+check_n(sum(exact_dup), 3166, "exact duplicate health rows dropped")
+
+
+# =============================================================================
+# 3. WITHIN CONTACT MOMENT: org x KindNummer_crypt x databestand x leeftijd
+# =============================================================================
 
 group_vars <- c("org", "KindNummer_crypt", "databestand", "leeftijd")
 all_vars <- setdiff(names(health_clean), group_vars)
 
-flag_switches <- function(df, var, group_vars) {
-  is_num <- is.numeric(df[[var]])
-  if (is_num) {
-    df <- df %>%
-      group_by(across(all_of(group_vars))) %>%
-      arrange(.data[[var]], .by_group = TRUE) %>%
-      mutate(
-        .is_miss   = is.na(.data[[var]]),
-        .prev_val  = lag(.data[[var]]),
-        .prev_miss = lag(.is_miss),
-        f   = if_else(row_number() != 1 & !.prev_miss &
-                        .data[[var]] != .prev_val, 1, NA_real_),
-        f_n = if_else(row_number() != 1 & !.prev_miss & !.is_miss &
-                        .data[[var]] != .prev_val, 1, NA_real_)
-      ) 
-  } else {
-          df <- df %>%
-            group_by(across(all_of(group_vars))) %>%
-            arrange(.data[[var]], .by_group = TRUE) %>%
-            mutate(
-              .is_miss    = .data[[var]] == "" | is.na(.data[[var]]),
-              .prev_val  = lag(.data[[var]]),
-              .prev_miss  = lag(.is_miss),
-              f   = if_else(row_number() != 1 & !.is_miss &
-                              .data[[var]] != .prev_val, 1, NA_real_),
-              f_n = if_else(row_number() != 1 & !.is_miss & !.prev_miss &
-                              .data[[var]] != .prev_val, 1, NA_real_)
-            )
-  }
-  
-  df <- df %>%
-    mutate(
-      max_f       = suppressWarnings(max(f, na.rm = TRUE)),
-      max_f       = if_else(is.infinite(max_f), 0, max_f),
-      max_f_n     = suppressWarnings(max(f_n, na.rm = TRUE)),
-      max_f_n     = if_else(is.infinite(max_f_n), 0, max_f_n)
-      ) %>%
-    ungroup() %>%
-    select(-.is_miss, -.prev_val, -.prev_miss)
-  
-  names(df)[names(df) == "f"]       <- paste0("f_", var)
-  names(df)[names(df) == "f_n"]       <- paste0("f_n_", var)
-  names(df)[names(df) == "max_f"]       <- paste0("max_f_", var)
-  names(df)[names(df) == "max_f_n"]       <- paste0("max_f_n_", var)
-  df
-  }
-  
+sw <- detect_switches(health_clean, all_vars, group_vars)
+print(sw$table)
+write_matrix(sw$table, work_path("Gezondheidsbestand_variables_within_onderwerp.xlsx"),
+             "variations")
+
+# --- FRANKENSTEIN file ----------------------------------------------------------------
+# Contact moments where at least one variable has a genuine conflict. Only the
+# conflicting variables are kept (the others are blanked), for inspection.
+conflict_any <- Reduce(`|`, sw$max_f_n)[sw$g]
+frankenstein <- health_clean[conflict_any, ]
 for (v in all_vars) {
-  health_clean <- flag_switches(health_clean, v, group_vars)
+  keep <- sw$max_f_n[[v]][sw$g[conflict_any]]
+  if (is.character(frankenstein[[v]])) frankenstein[[v]][!keep] <- "" else frankenstein[[v]][!keep] <- NA
 }
+message(sprintf("Rows written to the FRANKENSTEIN file: %d", nrow(frankenstein)))
+saveRDS(frankenstein, work_path("FRANKENSTEIN.rds"))
+rm(frankenstein)
 
-#Diagnostics matrix
-variations <- matrix(NA_real_, nrow = length(all_vars), ncol = 8)
-rownames(variations) <- all_vars
-colnames(variations) <- c(
-  "N", "Unique contact moments (N)",
-  "Switches (with missings)", "CMs switches (with missings)", "Rows affected (with", 
-  "Switches (without missings)", "CMs switches (without missings)", "Rows affected (without)"
-)
-
-grp_id <- health_clean %>%
-  group_by(across(all_of(group_vars))) %>%
-  mutate(.grp_id = cur_group_id()) %>%
-  ungroup() %>%
-  pull(.grp_id)
-
-for (v in all_vars) {
-  is_num <- is.numeric(health_clean[[v]])
-  is_miss <- if (is_num) is.na(health_clean[[v]]) else
-    (health_clean[[v]] == "" | is.na(health_clean[[v]]))
-  f_v <- health_clean[[paste0("f_", v)]]
-  f_n_v <- health_clean[[paste0("f_n_", v)]]
-  max_f_v <- health_clean[[paste0("max_f_", v)]]
-  max_f_n_v <- health_clean[[paste0("max_f_n_", v)]]
-  
-  variations[v, 1] <- sum(!is_miss)
-  variations[v, 2] <- length(unique(grp_id[!is_miss]))
-  variations[v, 3] <- sum(f_v, na.rm = TRUE)
-  variations[v, 4] <- length(unique(grp_id[max_f_v == 1]))
-  variations[v, 5] <- sum(max_f_v == 1, na.rm = TRUE)
-  variations[v, 6] <- sum(f_n_v, na.rm = TRUE)
-  variations[v, 7] <- length(unique(grp_id[max_f_n_v == 1]))
-  variations[v, 8] <- sum(max_f_n_v == 1, na.rm = TRUE)
-}
-print(variations)
-
-wb2 <- createWorkbook()
-addWorksheet(wb2, "variations")
-writeData(wb2, "variations", variations, rowNames = TRUE)
-saveWorkbook(wb2, "H:/JGZ-Pilot-Data/Gezondheidsbestand_variables_within_onderwerp.xlsx", overwrite = TRUE)
-
-saveRDS(health_clean, "H:/JGZ-Pilot-Data/Health_data_cleaning.rds")
-
-### CREATE FRANKENSTEIN FILE ###
-
-health_clean <- health_clean %>%
-  mutate(f_frankenstein = if_else(
-    if_any(all_of(paste0("max_f_n_", all_vars)), ~ . == 1), 1, NA_real_
-  ))
-
-n_flagged <- sum(health_clean$f_frankenstein == 1, na.rm = TRUE)
-message(sprintf("%d rows flagged for FRANKENSTEIN file", n_flagged))
-
-frankenstein <- health_clean %>% filter(f_frankenstein == 1)
-
-for (v in all_vars) {
-  max_f_n_v <- frankenstein[[paste0("max_f_n_", v)]]
-  if (is.numeric(frankenstein[[v]])) {
-    frankenstein[[v]][max_f_n_v != 1] <- NA
-  } else {
-    frankenstein[[v]][max_f_n_v != 1] <- ""
-  }
-}
-
-frankenstein <- frankenstein %>% select(-f_frankenstein)
-saveRDS(frankenstein, "H:/JGZ-Pilot-Data/FRANKENSTEIN.rds")
-
-### CLEAN UP DATABESTAND: 5-Category VaRIABLE TREATMENT ###
-
-cat_by <- group_vars
-
+# --- Treatment per variable category ------------------------------------------------
+# Based on the variations matrix above (decided in the do-file):
+#   1. group variables                      -- untouched
+#   2. cat_nothing                          -- left as is
+#   3. cat_fill_empty                       -- fill missing with the real value
+#   4. cat_dummies                          -- one dummy per value + missing flag
+#   5. cat_remove                           -- conflicts removed, missing filled
 cat_nothing <- c(
-  "postcode", "woonplaats", "gem", "st_a", "geslacht", "i_cm", "jaartal", 
-  "kindmogelijknietunieknr2", "maanden", "bril", "lh_r", "lh_l", "sc_ep", 
-  "sc_gp", "sc_pl", "sc_psg", "sdq_i", "zwduur", "dat_a_str"
+  "postcode", "woonplaats", "gem", "st_a", "geslacht", "i_cm", "jaartal",
+  "kindmogelijknietunieknr2", "maanden", "bril", "lh_r", "lh_l", "sc_ep",
+  "sc_gp", "sc_pl", "sc_ha", "sc_psg", "sdq_i", "zwduur", "dat_a_str"
 )
-
 cat_fill_empty <- c(
   "so_a2", "apkt_r4", "apkt_l4", "srt_o", "spontaan", "vragen1",
   "verstaan2", "vragen2", "r_gd_vve"
 )
-
 cat_dummies <- c(
-  "so_a", "i_jgz", "indi", "inter", "verwijs", "opl1", "opl2", 
-  "kindmogelijknietunieknr", "dubbel", "bst_nl", "taalomg", "meertaal",
-  "d_vvenum"
+  "so_a", "i_jgz", "indi", "inter", "verwijs", "opl1", "opl2",
+  "kindmogelijknietunieknr", "dubbel", "bst_nl", "taalomg", "meertaal", "d_vvenum"
 )
-
 cat_remove <- c(
   "lengte", "gewicht", "gebl1", "gebl2", "schoolnr", "lft2", "oog_o",
-  "apk_r", "apk_l", "apkt_r3", "apkt_l3", "apkt_r5", "apkt_l5", "lc_r", "lc_l" , "visus_c",
-  "scr_psp", "sdq_t", "zin2w",  "pop6", "noemt", "wijstaan", "zin3w", "verstaan1", "dat_a2_str"
+  "apk_r", "apk_l", "apkt_r3", "apkt_l3", "apkt_r5", "apkt_l5", "lc_r", "lc_l",
+  "visus_c", "scr_psp", "sdq_t", "zin2w", "pop6", "noemt", "wijstaan", "zin3w",
+  "verstaan1", "dat_a2_str"
 )
 
-for (v in cat_fill_empty) {
-  health_clean <- health_clean %>%
-    group_by(across(all_of(group_vars))) %>%
-    mutate(!!v := {
-      x <- .data[[v]]
-      if (is.numeric(x)) {
-        first_val <- suppressWarnings(min(x, na.rm = TRUE))
-        if (is.infinite(first_val)) x else rep(first_val, length(x))
-      } else {
-        sorted_x <- sort(x)
-        rep(sorted_x[1], length(x))
-      }
-    }) %>%
-    ungroup()
+uncategorised <- setdiff(all_vars, c(cat_nothing, cat_fill_empty, cat_dummies, cat_remove))
+if (length(uncategorised) > 0) {
+  message("Variables in no category (left as is): ", paste(uncategorised, collapse = ", "))
 }
-#Category 4
-for (v in cat_dummies) {
+not_found <- setdiff(c(cat_nothing, cat_fill_empty, cat_dummies, cat_remove), all_vars)
+if (length(not_found) > 0) {
+  warning("Category variables not in the health file: ", paste(not_found, collapse = ", "))
+}
+
+# Category 3: fill. Numeric: the group's smallest value (Stata: sort, take
+# var[1]). Strings: see [D3].
+for (v in intersect(cat_fill_empty, names(health_clean))) {
   x <- health_clean[[v]]
-  is_num <- is.numeric(x)
-  miss_flag <- if (is_num) is.na(x) else (x == "" | is.na(x))
-  health_clean[[paste0("d_", v, "_miss")]] <- if_else(miss_flag, 1, NA_real_)
-  
-  lvls <- unique(x[!miss_flag])
-  for (lvl in lvls) {
+  fill <- group_min(x, sw$g, sw$n_groups)[sw$g]
+  has_fill <- !is_blank(fill)
+  x[has_fill] <- fill[has_fill]
+  if (is.character(x) && isTRUE(cfg$replicate_stata_string_fill)) {
+    # Stata: sorted var[1] is "" whenever the contact moment has an empty row
+    any_blank <- tabulate(sw$g[is_blank(health_clean[[v]])], sw$n_groups) > 0
+    x[any_blank[sw$g]] <- ""
+  }
+  health_clean[[v]] <- x
+}
+
+# Category 4: dummies d_<var>_<value> (1 / missing, as in the do-file) and
+# d_<var>_miss
+for (v in intersect(cat_dummies, names(health_clean))) {
+  x <- health_clean[[v]]
+  miss <- is_blank(x)
+  health_clean[[paste0("d_", v, "_miss")]] <- ifelse(miss, 1, NA_real_)
+  for (lvl in sort(unique(x[!miss]))) {
     lvl_name <- gsub("[^A-Za-z0-9]", "_", as.character(lvl))
-    health_clean[[paste0("d_", v, "_", lvl_name)]] <- if_else(x == lvl, 1, NA_real_)
+    health_clean[[paste0("d_", v, "_", lvl_name)]] <- ifelse(!miss & x == lvl, 1, NA_real_)
   }
 }
 
-#Category 5
-for (v in cat_remove) {
-  max_f_n_v <- health_clean[[paste0("max_f_n_", v)]]
-  is_num <- is.numeric(health_clean[[v]])
-  if (is_num) {
-    health_clean[[v]][max_f_n_v == 1] <- NA
-  } else {
-    health_clean[[v]][max_f_n_v == 1] <- ".r"
-  }
-  max_f_col <- paste0("max_f_", v)
-  max_f_n_col <- paste0("max_f_n_", v)
-  health_clean <- health_clean %>%
-    group_by(across(all_of(group_vars))) %>%
-    mutate(!!v := {
-      x <- .data[[v]]
-      cond <- .data[[max_f_col]] == 1 & .data[[max_f_n_col]] != 1
-      if(any(cond, na.rm = TRUE)) {
-        fill_val <- if (is_num) suppressWarnings(min(x, na.rm = TRUE)) else sort(x) [length(x)]
-        x[cond] <- fill_val
-      }
-      x
-    }) %>%
-    ungroup()
+# Category 5: genuine conflicts -> removed; groups that only differ by
+# missingness -> filled with their single real value.
+for (v in intersect(cat_remove, names(health_clean))) {
+  x <- health_clean[[v]]
+  conflict <- sw$max_f_n[[v]][sw$g]
+  only_missing_switch <- (sw$max_f[[v]] & !sw$max_f_n[[v]])[sw$g]
+  fill <- group_min(x, sw$g, sw$n_groups)[sw$g]
+  x[only_missing_switch] <- fill[only_missing_switch]
+  if (is.character(x)) x[conflict] <- REMOVED else x[conflict] <- NA
+  health_clean[[v]] <- x
 }
 
-### COLLAPSE to 1 line PER org-KindNummer_rypt-databestand-leeftijd
-flag_cols <- unlist(lapply(all_vars, function(v) paste0(c("f_", "max_f_", "f_n_",
-                                                          "max_f_n_"), v)))
-health_clean <- health_clean %>% select(-any_of(flag_cols))
+# --- Collapse to one row per contact moment ----------------------------------------------
+health_clean <- collapse_all(health_clean, group_vars)
+stopifnot(!anyDuplicated(health_clean[, group_vars]))
+saveRDS(health_clean, work_path("Health_by_onderwerp.rds"))
 
-collapse_vars <- setdiff(names(health_clean), group_vars)
-
-health_clean <- health_clean %>%
-  group_by(across(all_of(group_vars))) %>%
-  summarise(
-    across(all_of(collapse_vars), function(x) {
-      if (is.character(x)) {
-        v <- x[!is.na(x) & x != ""]
-        if (length(v)) v[1] else NA_character_
-      } else {
-        m <- suppressWarnings(max(x, na.rm = TRUE))
-        if (is.infinite(m)) NA_real_ else m
-      }
-    }),
-    .groups = "drop"
-  )
-
-duplicates_check <- health_clean %>%
-  count(across(all_of(group_vars))) %>%
-  filter(n > 1)
-stopifnot(nrow(duplicates_check) == 0)
-
-saveRDS(health_clean, "H:/JGZ-Data-Pilot/Health_by_onderwerp.rds")
-
-### HEALTH FILE DESCRIPTIVES: LINES IN DATA AFTER CLEANING ###
-
-descriptive_health[7, "Total"] <- nrow(health_clean)
-org_counts_health_after <- table(health_clean$org)
-descriptive_health[7, names(org_counts_health_after)] <- org_counts_health_after
-
-for (d in 1:4) {
-  sub <- health_clean %>% filter(databestand == levels(health_clean$databestand[d]))
-  descriptive_health[7 + d, "Total"] <- nrow(sub)
-  org_n <- table(sub$org)
-  descriptive_health[7+d, names(org_n)] <- org_n
-}
+descriptive_health <- rbind(descriptive_health, n_by_org_domain(health_clean))
 print(descriptive_health)
-
-wb3 <- createWorkbook()
-addWorksheet(wb3, "descriptive")
-writeData(wb3, "descriptive", descriptive_health, rowNames = TRUE)
-saveWorkbook(wb3, "H:/JGZ-Pilot-Data/HealthFile_descriptives.xlsx", overwrite = TRUE)
+write_matrix(descriptive_health,
+             file.path(loc$descriptives_folder, "HealthFile_descriptives.xlsx"), "descriptive")
 
 
-### Merging HEALTH and ID FILE ###
-
-stata_merge <- function(master, using, by) {
-  master <- master %>% mutate(.in_master = TRUE)
-  using <- using %>% mutate(.in_using = TRUE)
-  merged <- full_join(master, using, by = by, suffix = c("", ".using"))
-  merged %>%
-    mutate(
-      .in_master = !is.na(.in_master), 
-      .in_using = !is.na(.in_using),
-      '_merge' = case_when(
-        .in_master & !.in_using ~ 1,
-        !.in_master & .in_using ~ 2,
-        TRUE ~ 3
-      )
-    ) %>%
-    select(-.in_master, -.in_using)
+# =============================================================================
+# 4. MERGE HEALTH FILE WITH ID FILE
+# =============================================================================
+# m:1 merge; rows of the health file without a match in the ID file are
+# counted and then dropped. Columns that exist in both keep the health-file
+# value (Stata default).
+merge_ids <- function(master, ids, by) {
+  stopifnot(!anyDuplicated(ids[, by]))
+  ids <- ids[, union(by, setdiff(names(ids), names(master))), drop = FALSE]
+  ids$.matched <- TRUE
+  out <- left_join(master, ids, by = by)
+  out$.matched <- !is.na(out$.matched)
+  out
 }
 
-merges <- matrix(NA_real__, nrow = 3, ncol = 2)
-rownames(merges) <- c("All three", "Icare-visus", "Total")
-colnames(merges) <- c("Using only", "Matched")
+is_icare_visus <- health_clean$org == ORG_CODES[["Icare"]] &
+  health_clean$databestand == DOMAIN_CODES[["visus"]]
 
-#MERGE 1: merge on all 3 identifying variables
-id_file_all <- readRDS("H:/JGZ-Pilot-Data/IDfile_clean_all.rds")
+# Merge 1: on organisation, child ID and domain (everything except Icare-visus)
+merge1 <- merge_ids(health_clean[!is_icare_visus, ], id_combined,
+                    by = c("org", "KindNummer_crypt", "databestand"))
+# Merge 3: Icare-visus via the child IDs of Icare-overgewicht (the visus
+# records cannot be linked directly; numbering "3" kept from the do-file)
+merge3 <- merge_ids(health_clean[is_icare_visus, ], icare_overgewicht_ids,
+                    by = c("org", "KindNummer_crypt"))
 
-health_merge1 <- health_clean %>%
-  filter(!(org == "Icare" & databestand == "visus")) %>%
-  stata_merge(id_file_all, by = c("org", "KindNummer_crypt", "databestand"))
-
-merges[1, "Using only"] <- sum(health_merge1$`_merge` == 1)
-merges[1, "Matched"]    <- sum(health_merge1$`_merge` == 3)
-
-health_merge1 <- health_merge1 %>% filter(`_merge` != 2)
-saveRDS(health_merge1, "H:/JGZ-Pilot-Data/Health_ID_merge1.rds")
-
-# MERGE3 
-icare_overgewicht_ids <- readRDS("H:/JGZ-Pilot-Data/IDfile_clean_Icare_overgewicht.rds")
-
-health_merge3 <- health_clean %>%
-  filter(org == "Icare", databestand == "visus") %>%
-  stata_merge(icare_overgewicht_ids, by = c("org", "KindNummer_crypt"))
-
-merges[2, "Using only"] <- sum(health_merge3$`_merge` == 1)
-merges[2, "Matched"]    <- sum(health_merge3$`merge` == 3)
-
-health_merge3 <- health_merge3 %>% filter(`_merge` != 2)
-saveRDS(health_merge3, "H:/JGZ-Pilot_Data/Health_ID_merge3.rds")
-
-#append the two merges, the recompute the "Total row"
-health_merged <- bind_rows(health_merge1, health_merge3)
-
-merges[3, "Using only"] <- sum(health_merged$`_merge` == 1)
-merge[3, "Matched"]     <- sum(health_merged$`merge` == 3)
+merges <- rbind(
+  `All three`   = c(sum(!merge1$.matched), sum(merge1$.matched)),
+  `Icare-visus` = c(sum(!merge3$.matched), sum(merge3$.matched))
+)
+merges <- rbind(merges, Total = colSums(merges))
+colnames(merges) <- c("Health file only (not matched)", "Matched")
 print(merges)
+write_matrix(merges, work_path("Merges.xlsx"), "merges")
+
+health_merged <- bind_rows(merge1, merge3) %>%
+  filter(.matched) %>%
+  select(-.matched) %>%
+  filter(!is_blank(RINPERSOONS)) %>%
+  relocate(RINPERSOONS, RINPERSOON) %>%
+  rename(any_of(c(d_kmn_uniek_miss = "d_kindmogelijknietunieknr_miss",
+                  d_kmn_uniek_0    = "d_kindmogelijknietunieknr_0",
+                  d_kmn_uniek_1    = "d_kindmogelijknietunieknr_1")))
+rm(merge1, merge3, health_clean)
+
+# KindNummer_crypt is no longer meaningful (organisations use different IDs
+# per domain); duplicates are now judged across organisations.
+health_merged$KindNummer_crypt <- NULL
+full_dup <- duplicated(health_merged)
+health_merged <- health_merged[!full_dup, ]
+check_n(sum(full_dup), 482, "full-row duplicates dropped after merge")
 
 
-wb4 <- createWorkbook()
-addWorksheet(wb4, "merges")
-writeData(wb4, "merges", merges, rowNames = TRUE)
-saveWorkbook(wb4, "H:/JGZ-Pilot-Data/Merges.xlsx", overwrite = TRUE)
+# =============================================================================
+# 5. WITHIN RIN x DOMAIN x AGE
+# =============================================================================
+# org is not a key any more: switches in org show children whose information
+# comes from more than one organisation (do-file: "perhaps because the file
+# moves when a child moves?" -- open question).
 
-### CLEAN MERGED FILE ###
-health_merged <- health_merged %>% filter(`_merge` != 1) %>% select(-`_merge`)
-
-health_merged <- health_merged %>% relocate(RINPERSOONS, RINPERSOON)
-#drop rows without RINPERSOONS
-health_merged <- health_merged %>% filter(RINPERSOONS != "")
-# Rename overly long dummy-variable banes
-health_merged <- health_merged %>%
-  rename(
-    d_kmn_uniek_miss = d_kindmogelijknietunieknr_miss, 
-    d_kmn_uniek_0    = d_kindmogelijknietunieknr_0,
-    dm_kmn_uniek_1   = d_kindmogelijknietunieknr_1
-  )
-
-### CHECK AND CLEAN DUPLICATES ON ALL VARIABLES ###
-health_merged <- health_merged %>% select(-KindNummer_crypt)
-
-n_before_dedup <- nrow(health_merged)
-health_merged <- health_merged %>% distinct(across(everything()), .keep_all = TRUE)
-n_after_dedup <- nrow(health_merged)
-
-message(sprintf("Dropped %d full-row duplicates (source do-file: 482)",
-                n_before_dedup - n_after_dedup))
-
-### SWITCH-DETECTION + VARIATIONS MATRIX -- MERGED FIle ###
 merged_group_vars <- c("RINPERSOONS", "RINPERSOON", "databestand", "leeftijd")
 merged_all_vars <- setdiff(names(health_merged), merged_group_vars)
+check_n(length(merged_all_vars), 174, "variables in RIN x domain x age switch detection")
 
-message(sprintf("Variables entering merged-file switch detection: %d (source do-file: 174)",
-                length(merged_all_vars)))
+sw <- detect_switches(health_merged, merged_all_vars, merged_group_vars)
+print(sw$table)
+write_matrix(sw$table, work_path("MergedData_variables_within_onderwerp.xlsx"), "variations")
 
-for (v in merged_all_vars) {
-  health_merged <- flag_switches(health_merged, v, merged_group_vars)
-}
-
-variations_merged <- matrix(NA_real_, nrow = length(merged_all_vars), ncol = 8)
-rownames(variations_merged) <- merged_all_vars
-colnames(variations_merged) <- c(
-  "N", "Unique contact moments (N)","Switches (with missings)", "CMs switches (with missings)",
-  "Rows affected" "Switches (without missings)", "CMs switches (without missings)", "Rows affected"
-)
-
-grp_id_merged <- health_merged %>%
-  group_by(across(all_of(merged_group_vars))) %>%
-  mutate(.grp_id = cur_group_id()) %>%
-  ungroup() %>%
-  pull(.grp_id)
-
-for (v in merged_all_vars) {
-  is_num <- is.numeric(health_merged[[v]])
-  is_miss <- if (is_num) is.na(health_merged[[v]]) else
-    (health_merged[[v]] == "" | is.na(health_merged[[v]]))
-  
-  f_v <- health_merged[[paste0("f_", v)]]
-  f_n_v <- health_merged[[paste0("f_n_", v)]]
-  max_f_v <- health_merged[[paste0("max_f_", v)]]
-  max_f_n_v <- health_merged[[paste0("max_f_n_", v)]]
-  
-  variations_merged[v, 1] <- sum(!is_miss)
-  variations_merged[v, 2] <- length(unique(grp_id_merged[!is_miss]))
-  variations_merged[v, 3] <- sum(f_v, na.rm = TRUE)
-  variations_merged[v, 4] <- length(unique(grp_id_merged[max_f_v == 1]))
-  variations_merged[v, 5] <- sum(max_f_v == 1, na.rm = TRUE)
-  variations_merged[v, 6] <- sum(f_n_v, na.rm = TRUE)
-  variations_merged[v, 7] <- length(unique(grp_id_merged[max_f_n_v == 1]))
-  variations_merged[v, 8] <- sum(max_f_n_V == 1, na.rm = TRUE)
-}
-
-print(variations_merged)
-
-wb5 <- createWorkbook()
-addWorksheet(wb5, "variations", variations_merged, rowNames = TRUE)
-writeData(wb5, "variations", variations_merged, rowNames = TRUE)
-saveWorkbook(wb5, "H:/JGZ-Pilot-Data/MergedData_variables_within_onderwerp.xlsx", overwrite = TRUE)
-
-saveRDS(health_merged, "H:/JGZ-Pilot_Data/Merged_cleaning_within_onderwerp.rds")
-
-### VARIABLES THAT NEED TO BE CLEANED BASED ON MATRIX ###
-remove_switches_only <- function(df, vars) {
-  for (v in vars) {
-    max_f_n_v <- df[[paste0("max_f_n_", v)]]
-    if (is.numeric(df[[v]])) {
-      df[[v]][max_f_n_v == 1] <- NA
-    } else {
-      df[[v]][max_f_n_v == 1] <- ".r"
-    }
-  }
-  df
-}
-
-### REMOVE GENUINE CONFLICT -- FIRST PASS ###
-switches_to_remove_1 <- intersect(
+health_merged <- remove_conflicts(
+  health_merged,
   c("org", "woonplaats", "gem", "gebl1", "gebl2", "postcode", "gewicht", "zwduur", "bestand"),
-  names(health_merged)
+  sw
 )
-health_merged <- remove_switches_only(health_merged, switches_to_remove_1)
+health_merged <- collapse_all(health_merged, merged_group_vars)
+saveRDS(health_merged, work_path("Merged_by_onderwerp.rds"))
 
-### COLLPASE INTO 1 LINE PER RINPERSOONS-RINPERSOON-databestand-leeftijd ###
-flag_cols_merged <- unlist(lapply(merged_all_vars, function(v) paste0(c("f_", "max_f_", "max_f_n_"), v)))
-health_merged <- health_merged %>% select(-any_of(flag_cols_merged))
 
-collapse_vars_merged <- setdiff(names(health_merged), merged_group_vars)
-
-health_merged <- health_merged %>%
-  group_by(across(all_of(merged_group_vars))) %>%
-  summarise(
-    across(all_of(collapse_vars_merged), function(x) {
-      if (is.character(x)) {
-        v <- x[!is.na(x) & x != ""]
-        if (length(v)) v[1] else NA_character_
-      } else {
-        m <- suppressWarnings(max(x, na.rm = TRUE))
-        if (is.infinite(m)) NA_real_ else m
-      }
-    }),
-    .groups = "drop"
-  )
-
-saveRDS(health_marged, "H:/JGZ-Pilot-Data")
+# =============================================================================
+# 6. ACROSS DOMAINS: RIN x AGE
+# =============================================================================
 
 domain_group_vars <- c("RINPERSOONS", "RINPERSOON", "leeftijd")
 domain_all_vars <- setdiff(names(health_merged), domain_group_vars)
-message(sprintf("Variables entering across-domain switch detection: %d (source do-file: 172)",
-                length(domain_all_vars)))
+check_n(length(domain_all_vars), 172, "variables in RIN x age switch detection")
 
-for (v in domain_all_vars) {
-  health_merged <- flag_swiitches(health_merged, v, domain_group_vars)
-}
+sw <- detect_switches(health_merged, domain_all_vars, domain_group_vars)
+print(sw$table)
+write_matrix(sw$table, work_path("MergedData_variables_across_onderwerp.xlsx"), "variations")
+message(sprintf("Full-row duplicates before the final collapse: %d",
+                sum(duplicated(health_merged))))
 
-variations_domain <- matrix(NA_real_, nrow = length(domain_all_vars), ncol = 8)
-rownames(variations_domain) <- domain_all_vars
-colnames(variations_domain) <- c(
-  "N", "Unique contact moments (N)", 
-  "Switches (with missing)", "CMs switches (with missings)", "Rows affected (with)",
-  "Switches (without missings)", "CMs switches (without missings)", "Rows affected (without)"
-)
-
-grp_id_domain <- health_merged %>%
-  group_by(across(all_of(domain_groups_vars))) %>%
-  mutate(.grp_id = cur_group_id()) %>%
-  ungroup() %>%
-  pull(.grp_id)
-
-for (v in domain_all_vars) {
-  is_num <- is.numeric(health_merged[[v]])
-  is_miss <- if (is_num) is.na(health_merged[[v]]) else
-    (health_merged[[v]] == "" | is.na(health_merged[[v]]))
-  f_v <- health_merged[[paste0("f_", v)]]
-  f_n_v <- health_merged[[paste0("f_n_", v)]]
-  max_f_v <- health_merged[[paste0("max_f_", v)]]
-  max_f_n_v <- health_merged[[paste0("max_f_n_", v)]]
-  
-  variations_domain[v, 1] <- sum(!is_miss)
-  variations_domain[v, 2]  <- length(unique(grp_id_domain[!is_miss]))
-  variations_domain[v, 3] <- sum(f_v, na.rm = TRUE)
-  variations_domain[v, 4] <- length(unique(grp_id_domain[max_f_v == 1]))
-  variations_domain[v, 5] <- sum(max_f_v == 1, na.rm = TRUE)
-  variations_domain[v, 6] <- sum(f_n_v, na.rm = TRUE)
-  variations_domain[v, 7] <- length(unique(grp_id_domain[max_f_n_v == 1]))
-  variations_domain[v, 8] <- sum(max_f_n_v == 1, na.rm = TRUE)
-}
-print(variations_domain)
-
-wb6 <- createWorkbook()
-addWorksheet(wb6, "variations")
-writeData(wb6, "variations", variations_domain, rowNames = TRUE)
-saveWorkbook(wb6, "H:/JGZ-Pilot-Data/MergedData_variables_across_onderwerp.xlsx", overwrite = TRUE)
-
-saveRDS(health_merged, "H:/JGZ-Pilot-Data/Merged_data_cleaning.rds")
-
-# Diagnostic-only duplicates check (no rows dropped by this)
-dupes_across_domain <- health_merged %>%
-  count(across(everythin())) %>%
-  filter(n > 1)
-message(springf("Full-row duplicates remainng after across-domain collapse: %d groups",
-                nrow(dupes_across_domain)))
-
-# fix of problem: same RIN has multiple lines within the same domain, even after
-# the across-domain collapse
-switches_to_remove_2 <- intersect(
+# Do-file notes on switches at this point: org (CHECK: moves?), woonplaats
+# (CHECK: all org 10 and 12), databestand (expected: domains are combined).
+health_merged <- remove_conflicts(
+  health_merged,
   c("org", "databestand", "woonplaats", "gem", "gebl1", "gebl2", "postcode", "gewicht", "zwduur"),
-  names(health_merged)
-)
-health_merged <- remove_switches_only(health_merged, switches_to_remove_2)
-
-### COLLAPSE INTO PANEL DATA ###
-domain_flag_cols <- unlist(lapply(domain_all_vars, function(v) {
-  paste0(c("f_", "max_f_", "f_n_", "max_f_n_"), v)
-}))
-health_merged <- health_merged %>% select(-any_of(domain_flag_cols))
-
-firstnm_vars <- c(
-  "woonplaats", "gem", "gebl1", "gebl2", "schoolnr", "visus_c",
-  "dat_a_str", "dat_a2_str"
+  sw
 )
 
+# --- Final collapse: explicit variable lists (Stata collapse drops the rest) ---
+firstnm_vars <- c("woonplaats", "gem", "gebl1", "gebl2", "schoolnr", "visus_c",
+                  "dat_a_str", "dat_a2_str")
 max_vars <- c(
-  "org", "postcode", "geslacht", "i_cm", "st_a", "lengte", "gewicht", "lft2", "so_a2", "jaartal", "kindmogelijknietunieknr2",
-  "maanden", "bril", "oog_o", "apk_r", "apk_l", "apkt_r3", "apkt_l3", "apkt_r4", "apkt_l4", "apkt_r5", "apkt_l5", "lh_r", 
-  "lh_l", "lc_r", "lc_l", "scr_psp", "sc_ep", "sc_gp", "sc_pl", "sc_ha", "sdq_t", "sc_psg", "sdq_i", "srt_o", "zin2w", "pop6", "noemt", "wijstaan",
-  "zin3w", "verstaan1", "spontaan", "vragen1", "verstaan2", "vragen2", "zwduur", "r_gd_vve", "d_so_a_miss", "d_so_a_2",
-  "d_so_a_3", "d_so_a_4", "d_so_a_5", "d_so_a_6", "d_so_a_7", "d_so_a_9", "d_so_a_10", "d_so_a_11", "d_so_a_12", "d_so_a_13",
-  "d_so_a_14", "d_so_a_15", "d_so_a_16", "d_so_a_17", "d_so_a_19", "d_so_a_20", "d_so_a_22", "d_so_a_25", "d_i_jgz_miss",
-  "d_i_jgz_1", "d_i_jgz_2", "d_i_jgz_3", "d_indi_miss", "d_indi_9", "d_indi_10", "d_indi_12", "d_indi_18",
-  "d_indi_19", "d_indi_20", "d_inter_miss", "d_inter_1", "d_inter_2", "d_inter_3", "d_inter_4", "d_inter_5", "d_inter_6",
-  "d_inter_7", "d_inter_98", "d_verwijs_miss", "d_verwijs_1", "d_verwijs_2", "d_verwijs_3", "d_verwijs_4", "d_verwijs_5",
-  "d_verwijs_6", "d_verwijs_7", "d_verwijs_8", "d_verwijs_9", "d_verwijs_10", "d_verwijs_11", "d_verwijs_12", "d_verwijs_13",
-  "d_verwijs_14", "d_verwijs_15", "d_verwijs_16", "d_verwijs_17", "d_verwijs_19", "d_verwijs_20", "d_verwijs_21", "d_verwijs_23",
-  "d_verwijs_24", "d_verwijs_25", "d_verwijs_26", "d_verwijs_27", "d_verwijs_28", "d_verwijs_29", "d_verwijs_98", "d_opl1_miss",
-  "d_opl1_0 d_opl1_1", "d_opl1_2", "d_opl1_3", "d_opl1_4", "d_opl1_5", "d_opl1_6", "d_opl1_7", "d_opl1_8", "d_opl1_9", "d_opl1_98",
-  "d_opl2_miss", "d_opl2_0", "d_opl2_1", "d_opl2_2", "d_opl2_3", "d_opl2_4", "d_opl2_5", "d_opl2_6", "d_opl2_7", "d_opl2_8",
-  "d_opl2_9", "d_opl2_98", "d_kmn_uniek_miss", "d_kmn_uniek_0", "d_kmn_uniek_1", "d_dubbel_miss", "d_dubbel_0", "d_dubbel_1",
-  "d_bst_nl_miss", "d_bst_nl_1", "d_bst_nl_2", "d_taalomg_miss", "d_taalomg_1", "d_taalomg_2", "d_taalomg_3", "d_meertaal_miss",
-  "d_meertaal_1", "d_meertaal_2", "d_meertaal_3", "d_d_vvenum_miss", "d_d_vvenum_1", "d_d_vvenum_2"
+  "org", "postcode", "geslacht", "i_cm", "st_a", "lengte", "gewicht", "lft2",
+  "so_a2", "jaartal", "kindmogelijknietunieknr2", "maanden", "bril", "oog_o",
+  "apk_r", "apk_l", "apkt_r3", "apkt_l3", "apkt_r4", "apkt_l4", "apkt_r5", "apkt_l5",
+  "lh_r", "lh_l", "lc_r", "lc_l", "scr_psp", "sc_ep", "sc_gp", "sc_pl", "sc_ha",
+  "sdq_t", "sc_psg", "sdq_i", "srt_o", "zin2w", "pop6", "noemt", "wijstaan",
+  "zin3w", "verstaan1", "spontaan", "vragen1", "verstaan2", "vragen2", "zwduur",
+  "r_gd_vve",
+  "d_so_a_miss", paste0("d_so_a_", c(2:7, 9:17, 19, 20, 22, 25)),
+  "d_i_jgz_miss", paste0("d_i_jgz_", 1:3),
+  "d_indi_miss", paste0("d_indi_", c(9, 10, 12, 18, 19, 20)),
+  "d_inter_miss", paste0("d_inter_", c(1:7, 98)),
+  "d_verwijs_miss", paste0("d_verwijs_", c(1:17, 19:21, 23:29, 98)),
+  "d_opl1_miss", paste0("d_opl1_", c(0:9, 98)),
+  "d_opl2_miss", paste0("d_opl2_", c(0:9, 98)),
+  "d_kmn_uniek_miss", "d_kmn_uniek_0", "d_kmn_uniek_1",
+  "d_dubbel_miss", "d_dubbel_0", "d_dubbel_1",
+  "d_bst_nl_miss", "d_bst_nl_1", "d_bst_nl_2",
+  "d_taalomg_miss", paste0("d_taalomg_", 1:3),
+  "d_meertaal_miss", paste0("d_meertaal_", 1:3),
+  "d_d_vvenum_miss", "d_d_vvenum_1", "d_d_vvenum_2"
 )
+# Strings in the (max) list (e.g. the Wiechen items "+", "-", "M") are kept
+# with (firstnm): max() of text is not meaningful in R, and after the conflict
+# removal above there is at most one value per child x age.
+is_chr <- vapply(health_merged[intersect(max_vars, names(health_merged))], is.character, logical(1))
+firstnm_vars <- c(firstnm_vars, names(is_chr)[is_chr])
+max_vars <- setdiff(max_vars, names(is_chr)[is_chr])
 
-missing_firstnm <- setdiff(fristnm_vars, names(health_merged))
-missing_max <- setdiff(max_vars, names(health_merged))
-if (length(missing_firstnm) > 0) {
-  warning("firstnm_vars not found in health_merged: ", paste(missing_firstnm, collapse = ", "))
+for (lst in c("firstnm_vars", "max_vars")) {
+  missing_vars <- setdiff(get(lst), names(health_merged))
+  if (length(missing_vars) > 0) {
+    message(lst, " not found in the data (skipped): ", paste(missing_vars, collapse = ", "))
+  }
 }
-if (length(missing_max) > 0) {
-  warning("max_vars not found in health_merged: ", paste(missing_max, collapse = ", "))
-}
-firstnm_vars <- intersect(firstnm_vars, names(health_merged))
-max_vars <- intersect(max_vars, names(health_merged))
+dropped_vars <- setdiff(names(health_merged), c(domain_group_vars, firstnm_vars, max_vars))
+message("Variables dropped by the final collapse: ", paste(dropped_vars, collapse = ", "))
 
-panel_group_vars <- domain_group_vars #RINPERSOONS, RINPERSOON, leeftijd
+JGZ_panel <- collapse_groups(
+  health_merged, domain_group_vars,
+  firstnm_vars = intersect(firstnm_vars, names(health_merged)),
+  max_vars     = intersect(max_vars, names(health_merged))
+) %>%
+  arrange(RINPERSOONS, RINPERSOON, leeftijd)
+stopifnot(!anyDuplicated(JGZ_panel[, domain_group_vars]))
 
-JGZ_panel <- health_merged %>%
-  group_by(across(all_of(panel_group_vars))) %>%
-  summarise(
-    across(all_of(firstnm_vars), function(x) {
-      v <- x[!is.na(x) & x != ""]
-      if (length(v)) v[1] else NA_character_
-    }),
-    across(all_of(max_vars), function(x) {
-      m <- suppressWarnings(max(x, na.rm = TRUE))
-      if (is.infinite(m)) NA_real_ else m
-    }),
-    .groups = "drop"
-  )
-
-panel_dupes <- JGZ_panel %>%
-  count(across(all_of(panel_group_vars))) %>%
-  filter(n > 1)
-stopifnot(nrow(panel_dupes) == 0)
-
-#sort RINPERSOONS RINPERSOON leeftid
-JGZ_panel <- JGZ_panel %>% arrange(across(all_of(panel_gorup_vars)))
-
-saveRDS(JGZ_panel, "H:/JGZ-Panel-Data/JGZ_panel.rds")
+message(sprintf("JGZ panel: %d rows, %d children", nrow(JGZ_panel),
+                nrow(distinct(JGZ_panel, RINPERSOONS, RINPERSOON))))
+saveRDS(JGZ_panel, loc$panel_file)

@@ -1,89 +1,69 @@
-library(dplyr)
-library(purrr)
-library(readxl)
-library(writexl)
+# =============================================================================
+# JGZ pilot -- 04. Disclosure checks on the tidy gradient files
+#
+#   1. Combines the per-contact-moment speech/language (spraak) subgroup files
+#      into one file (overall, per organisation and excluding each organisation)
+#   2. Runs the checks from check_function.R on every tidy gradient file and
+#      writes <name>_export.xlsx
+#
+#   Input/output folder: loc$gradients_folder (output of 03)
+#
+# Run from the repository root.
+# =============================================================================
 
-setwd("H:/JGZ-Pilot-Data/Gradients Analysis Results")
+source("src/jgz/jgz_helpers.R")
+source("src/jgz/check_function.R")
+suppressPackageStartupMessages({
+  library(readxl)
+  library(writexl)
+})
 
-#Spraaktaal 
-subgroups <- list.files(pattern =".*cm\\d+spraak_subgroups_tidy.*")
-comb_subgroups <- map_dfr(subgroups, read_xlsx) 
-write_xlsx(comb_subgroups, "gradients_spraak_subgroups_tidy.xlsx")
+gradient_files <- function(pattern) {
+  list.files(loc$gradients_folder, pattern = pattern, full.names = TRUE)
+}
 
-
-for (org in c("6", "7", "10", "12")) {
-  subgroups_org <- list.files(pattern = paste0(".*cm\\d+spraak_subgroups_", org, "_tidy.*"))
-  subgroups_excl_org <- list.files(pattern =paste0(".*cm\\d+spraak_subgroups_excl_", org, "_tidy.*"))
-  
-  comb_subgroups_org <- map_dfr(subgroups_org, read_xlsx)
-  comb_subgroups_excl_org <- map_dfr(subgroups_excl_org, read_xlsx) 
-  
-  write_xlsx(comb_subgroups_org, paste0("gradients_spraak_subgroups_", org, "_tidy.xlsx"))
-  write_xlsx(comb_subgroups_excl_org, paste0("gradients_spraak_subgroups_excl_", org, "_tidy.xlsx"))
+combine_files <- function(files, out_name) {
+  if (length(files) == 0) return(invisible(NULL))
+  combined <- bind_rows(lapply(files, read_xlsx))
+  write_xlsx(combined, file.path(loc$gradients_folder, out_name))
+  message(sprintf("Combined %d file(s) into %s", length(files), out_name))
 }
 
 
-
-
-source("H:/JGZ-Pilot-Data/Scripts and do files/gradients/check_function.R")
-
-#Spraktaal & Psychosociaal & Visus
-files <- list.files(pattern = ".*(spraak|visus|psychosociaal).*tidy.*")
-files <- files[!grepl("_cm", basename(files))] 
-files <- files[!grepl("export", basename(files))]
-
-for (file in files) {
-  data <- read_xlsx(file)
-  data <- simple_check(data)
-  new_name <- tools::file_path_sans_ext(basename(file))
-  write_xlsx(data, paste0(new_name, "_export.xlsx"))
+# ---- 1. Combine speech/language subgroup files over contact moments -----------
+combine_files(gradient_files("cm\\d+spraak_subgroups_tidy"), "gradients_spraak_subgroups_tidy.xlsx")
+for (org in ORG_CODES) {
+  combine_files(gradient_files(paste0("cm\\d+spraak_subgroups_", org, "_tidy")),
+                paste0("gradients_spraak_subgroups_", org, "_tidy.xlsx"))
+  combine_files(gradient_files(paste0("cm\\d+spraak_subgroups_excl_", org, "_tidy")),
+                paste0("gradients_spraak_subgroups_excl_", org, "_tidy.xlsx"))
 }
 
-#Overgewicht
-files <- list.files(pattern = ".*overgewicht.*tidy.*")
-files <- files[!grepl("export", basename(files))]
 
-
-for (file in files) {
-  data <- read_xlsx(file)
-  data <- complex_check(data, c("overgewicht", "obesity"))
-  new_name <- tools::file_path_sans_ext(basename(file))
-  write_xlsx(data, paste0(new_name, "_export.xlsx"))
+# ---- 2. Checks ---------------------------------------------------------------------
+check_files <- function(pattern, check, exclude = NULL) {
+  files <- gradient_files(pattern)
+  files <- files[!grepl("export", basename(files))]
+  if (!is.null(exclude)) files <- files[!grepl(exclude, basename(files))]
+  for (f in files) {
+    checked <- check(read_xlsx(f))
+    write_xlsx(checked, sub("\\.xlsx$", "_export.xlsx", f))
+  }
+  message(sprintf("%-40s %d file(s) checked", pattern, length(files)))
 }
 
-#Gewicht
-files <- list.files(pattern = ".*gewicht.*tidy.*")
-files <- files[!grepl("over", basename(files))]
-files <- files[!grepl("export", basename(files))]
+min_cell <- cfg$min_cell
 
-
-for (file in files) {
-  data <- read_xlsx(file)
-  data <- complex_check(data, c("bmi", "gewicht", "lengte"))
-  new_name <- tools::file_path_sans_ext(basename(file))
-  write_xlsx(data, paste0(new_name, "_export.xlsx"))
-}
-
-#P90
-files <- list.files(pattern = ".*p90.*tidy.*")
-files <- files[!grepl("export", basename(files))]
-
-
-for (file in files) {
-  data <- read_xlsx(file)
-  data <- complex_check(data, c("bmi", "gewicht"))
-  new_name <- tools::file_path_sans_ext(basename(file))
-  write_xlsx(data, paste0(new_name, "_export.xlsx"))
-}
-
-#BMI percentiles
-files <- list.files(pattern = ".*bmi.*tidy.*")
-files <- files[!grepl("export", basename(files))]
-
-
-for (file in files) {
-  data <- read_xlsx(file)
-  data <- bmi_p_check(data)
-  new_name <- tools::file_path_sans_ext(basename(file))
-  write_xlsx(data, paste0(new_name, "_export.xlsx"))
-}
+# Speech/language, psychosocial, vision (long format). The per-contact-moment
+# spraak files are skipped: they are covered by the combined files above.
+check_files("(spraak|visus|psychosociaal).*_tidy\\.xlsx$",
+            function(d) simple_check(d, min_cell), exclude = "_cm")
+# Weight-related outcomes (wide format)
+check_files("gradients_overgewicht.*_tidy\\.xlsx$",
+            function(d) complex_check(d, c("overgewicht", "obesity"), min_cell))
+check_files("gradients_gewicht.*_tidy\\.xlsx$",
+            function(d) complex_check(d, c("bmi", "gewicht", "lengte"), min_cell))
+check_files("gradients_p90.*_tidy\\.xlsx$",
+            function(d) complex_check(d, c("bmi", "gewicht"), min_cell))
+check_files("gradients_bmi.*_tidy\\.xlsx$",
+            function(d) bmi_p_check(d, min_cell))
