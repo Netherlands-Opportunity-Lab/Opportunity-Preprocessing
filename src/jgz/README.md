@@ -25,7 +25,7 @@ no `join_by()`, `if_any()` or `relationship =`.
 | `03_to_tidy_data.R` | gradient Excel files | `*_tidy.xlsx` | Reshapes gradient output (20 income bins) from wide to long |
 | `check_function.R` | – | – | Disclosure checks for gradients (used by 04) |
 | `04_to_export.R` | `*_tidy.xlsx` | `*_tidy_export.xlsx` | Combines speech/language files and runs the checks |
-| `05_final.R` | outputs of 02 and 04, other results | export workbooks | Bundles everything for organisations 7 and 10 |
+| `05_final.R` | outputs of 02 and 04, other results | export workbooks | Bundles everything for the organisations in `export_orgs` (config). Map workbooks keep the 2025 file and sheet names that `pc4_map_JGZ.R` reads |
 | `catchment_area_calculations.R` | GBA, VSLPOSTCODEBUS, cleaned ID file (00) | `CatchmentArea.xlsx` | Share of permanently resident children (born 2010-2014) covered by the JGZ data, per PC2/PC3 |
 | `jgz_helpers.R` | – | – | Config loading and shared helpers (sourced by all scripts) |
 

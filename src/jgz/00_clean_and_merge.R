@@ -186,6 +186,18 @@ print(table(org = id_combined$org[no_onderwerp]))
 id_combined <- id_combined[!no_onderwerp, ]
 check_n(sum(no_onderwerp), 456, "ID rows without Onderwerp dropped")
 
+# --- CBS placeholder hash ------------------------------------------------------------
+# CBS fills an empty uploaded child ID with one fixed hash; it is not a child.
+# Removed BEFORE the duplicates step below: these rows share child ID x
+# organisation x Onderwerp, so otherwise they would be counted there and the
+# counts would not match the cleaning flow (12 duplicates, 13,013 placeholder
+# rows). The cleaned data is the same in both orders.
+if (nzchar(cfg$placeholder_hash)) {
+  is_placeholder <- id_combined$KindNummer_crypt %in% cfg$placeholder_hash
+  id_combined <- id_combined[!is_placeholder, ]
+  check_n(sum(is_placeholder), 13013, "ID rows with the CBS placeholder hash dropped (13,013 or 13,014)")
+}
+
 # --- Ambiguous duplicates ------------------------------------------------------------
 # Child ID is unique within organisation x Onderwerp, except for a few rows with
 # the same child ID but a different RIN. These cannot be matched to the
@@ -194,14 +206,6 @@ dup_key <- id_combined[, c("KindNummer_crypt", "bestand", "Onderwerp")]
 is_dup <- duplicated(dup_key) | duplicated(dup_key, fromLast = TRUE)
 id_combined <- id_combined[!is_dup, ]
 check_n(sum(is_dup), 12, "ambiguous ID duplicates dropped")
-
-# --- CBS placeholder hash ------------------------------------------------------------
-# CBS fills an empty uploaded child ID with one fixed hash; it is not a child.
-if (nzchar(cfg$placeholder_hash)) {
-  is_placeholder <- id_combined$KindNummer_crypt %in% cfg$placeholder_hash
-  message(sprintf("ID rows with the CBS placeholder hash dropped: %d", sum(is_placeholder)))
-  id_combined <- id_combined[!is_placeholder, ]
-}
 
 descriptive <- rbind(descriptive, n_by_org_domain(id_combined))
 print(descriptive)

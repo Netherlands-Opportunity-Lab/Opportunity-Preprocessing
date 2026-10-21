@@ -36,6 +36,16 @@ default:
     # SDQ cut-offs
     sdq_cutoffs: [11, 14]
 
+    # --- 05_final.R -----------------------------------------------------------
+    # Organisations whose results may be exported (6 LimburgNoord, 7 ZONL,
+    # 10 Verian, 12 Icare). Only include organisations that gave permission.
+    export_orgs: [7, 10]
+    # Also export pooled results (all organisations together)? Only when every
+    # organisation in the pool gave permission.
+    export_pooled: FALSE
+    # Also export "excluding organisation X" results for the orgs above?
+    export_excl: FALSE
+
   file_locations:
     # --- raw CBS microdata (00) ---------------------------------------------
     id_file:      "L:/8151mcuniekCBKV2.SAV"
