@@ -115,11 +115,14 @@ default:
     # ZVWZORGKOSTEN) are found below it, latest version per year, as in the
     # other pipelines of this repository. The address and postcode files must
     # cover the latest contact date in the JGZ data.
+    # Same versions as the prim8_a/prim8_b pipelines (config/P_2_1_prim8_*.yml),
+    # since 23 Oct 2026; before: GBAPERSOON2023TABV1, GBAADRESOBJECT2023BUSV1,
+    # VSLPOSTCODEBUSV2025031, KINDOUDER2023TABV1.
     data_folder:      "G:/"
-    gba_persoon_file: "Bevolking/GBAPERSOONTAB/2023/GBAPERSOON2023TABV1.sav"
-    gba_adres_file:   "Bevolking/GBAADRESOBJECTBUS/GBAADRESOBJECT2023BUSV1.sav"
-    vslpostcode_file: "BouwenWonen/VSLPOSTCODEBUS/VSLPOSTCODEBUSV2025031.sav"
-    kindouder_file:   "Bevolking/KINDOUDERTAB/KINDOUDER2023TABV1.sav"
+    gba_persoon_file: "Bevolking/GBAPERSOONTAB/2024/GBAPERSOON2024TABV3.sav"
+    gba_adres_file:   "Bevolking/GBAADRESOBJECTBUS/GBAADRESOBJECT2024BUSV1.sav"
+    vslpostcode_file: "BouwenWonen/VSLPOSTCODEBUS/VSLPOSTCODEBUSV2026031.sav"
+    kindouder_file:   "Bevolking/KINDOUDERTAB/KINDOUDER2025TABV2.sav"
 
     # --- reference files (03) -----------------------------------------------------
     # PC4 -> organisation with coverage dates (org, gemeente, postcode_4, aanvang, einde)

@@ -85,6 +85,14 @@ no `join_by()`, `if_any()` or `relationship =`.
   file, per PC2/PC3) is removed: the official PC4 catchment file and 03 replace
   it. Coverage per area can be computed from 03's output (`d_observed_*` by
   `postcode_4` or `org_catchment`).
+- **CBS file versions -- decided 23 Oct 2026.** GBAPERSOONTAB,
+  GBAADRESOBJECTBUS, VSLPOSTCODEBUS and KINDOUDERTAB are the same versions as
+  in prim8_a/prim8_b (2024/2024/2026031/2025; before: 2023/2023/2025031/2023),
+  so the pipelines can share files (also the converted `.db` versions in
+  `sqlexperiment/`). Newer versions include CBS corrections, so counts in 01
+  and 03 can shift slightly. The CBS code lists in 03 (LANDAKTUEELREFV9,
+  OPLEIDINGSNRREFV24, CTOREFV8) stay the versions Coen used, for his ETNGRP
+  and ISCED coding; prim8_a uses V15 / V36 / V13.
 - **PC4 file.** `resources/jgz_pc4gebieden.csv` is the copy from
   `Opportunity-Analysis-Map/JGZ/resources`; the copy in "Background info
   preprocessing JGZ" on SharePoint has broken quoting. PC4 8080 is listed for

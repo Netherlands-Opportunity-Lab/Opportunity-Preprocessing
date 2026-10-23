@@ -105,6 +105,17 @@ gba_cols <- c("RINPERSOONS", "RINPERSOON", "GBAGEBOORTELAND", "GBAGESLACHT",
               "GBAHERKOMSTGROEPERING", "GBAGENERATIE",
               "GBAGEBOORTEJAAR", "GBAGEBOORTEMAAND", "GBAGEBOORTEDAG")
 gba <- read_sav(cbs_path(loc$gba_persoon_file), col_select = any_of(gba_cols))
+# Columns can differ between GBAPERSOONTAB versions: stop if an ID or the
+# birth date is missing, otherwise continue with an empty column.
+gba_missing <- setdiff(gba_cols, names(gba))
+if (any(gba_missing %in% c("RINPERSOONS", "RINPERSOON", "GBAGEBOORTEJAAR",
+                           "GBAGEBOORTEMAAND", "GBAGEBOORTEDAG"))) {
+  stop("Not in ", loc$gba_persoon_file, ": ", paste(gba_missing, collapse = ", "))
+}
+for (v in gba_missing) {
+  warning(v, " not in ", loc$gba_persoon_file, ": left empty in the output")
+  gba[[v]] <- NA_character_
+}
 herkomst_label <- as.character(as_factor(gba$GBAHERKOMSTGROEPERING, levels = "labels"))
 if (all(grepl("^[0-9]+$", na.omit(herkomst_label)))) {
   warning("GBAHERKOMSTGROEPERING has no value labels: ETNGRP cannot be derived (all 7)")
