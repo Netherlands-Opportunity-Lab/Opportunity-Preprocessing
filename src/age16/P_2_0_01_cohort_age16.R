@@ -281,8 +281,8 @@ for (age in c(cfg$neighborhood_composition_age_1, cfg$neighborhood_composition_a
     left_join(age_tab, by = c("RINPERSOONS", "RINPERSOON")) %>%
     # take addresses that are still open on home_address_date
     filter(
-      recordstart <= home_address_date &
-        recordend >= home_address_date
+      GBADATUMAANVANGADRESHOUDING <= home_address_date &
+        GBADATUMEINDEADRESHOUDING >= home_address_date
     ) %>%
     group_by(RINPERSOONS, RINPERSOON) %>%
     summarise(home = RINOBJECTNUMMER[1],
@@ -337,15 +337,15 @@ for (age in c(cfg$neighborhood_composition_age_1, cfg$neighborhood_composition_a
   home_tab <- home_tab %>%
     inner_join(vslpc_tab, by = c("home" = "RINOBJECTNUMMER",
                                  "type_home" = "SOORTOBJECTNUMMER")) %>%
-    rename(!!paste0("new_postcode4_age", age) := postcode4) %>%
-    select(c("RINPERSOONS", "RINPERSOON", paste0("new_postcode4_age", age)))
+    rename(!!paste0("postcode4_age", age) := postcode4) %>%
+    select(c("RINPERSOONS", "RINPERSOON", paste0("postcode4_age", age)))
   
   # add the postal code to the cohort
   cohort_dat <- cohort_dat %>%
     left_join(home_tab,
               by = c("RINPERSOONS", "RINPERSOON")) %>% 
     # mutate factor regions
-    mutate(!!paste0("new_postcode4_age", age) := as.factor(!!sym(paste0("new_postcode4_age", age))))
+    mutate(!!paste0("postcode4_age", age) := as.factor(!!sym(paste0("postcode4_age", age))))
   
   # free up memory
   rm(home_tab, age_tab)

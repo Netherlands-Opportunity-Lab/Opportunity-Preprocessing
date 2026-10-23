@@ -1588,7 +1588,10 @@ outcomes <- c("employed", "social_assistance", "disability", "age_left_parents",
               #"household_below_poverty"
               )
 
+# drop rows with a missing outcome; ungroup first: cohort_dat is still grouped by
+# birth_year here, and select(.) inside a grouped filter() does not line up per group
 cohort_dat <- cohort_dat %>%
+  ungroup() %>%
   filter(rowSums(is.na(select(., all_of(outcomes)))) == 0)
 
 #### PREFIX ####

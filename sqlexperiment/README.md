@@ -99,11 +99,11 @@ cohorts every scratch file of the `sql` variant is identical to the `sav` varian
 (values, row order, column types, factor levels). The timings on the synthetic data say
 little (the files are tiny); the real test is the run in the RA.
 
-Two cohorts did not run to the end on the synthetic data, in **both** variants, because
-of issues in the current `src/` scripts (not in this experiment). For the test they were
-patched in a temporary copy only; the scripts here are unchanged copies of `src/`:
-- age16, `01_cohort`: the age-12/16 loop filters on `recordstart`/`recordend` (not columns
-  of GBAADRESOBJECT; age21 uses `GBADATUMAANVANGADRESHOUDING`/`GBADATUMEINDEADRESHOUDING`),
-  and creates `new_postcode4_age*` while the next line and `03_outcomes` use `postcode4_age*`.
-- age35, `03_outcomes`: `filter(rowSums(is.na(select(., all_of(outcomes)))) == 0)` runs on a
-  data frame that is still grouped by `birth_year`, which fails (size mismatch) in dplyr 1.1.
+Two cohorts first did not run to the end on the synthetic data, in **both** variants,
+because of bugs in `src/`. These are now fixed in `src/` and in the copies here:
+- age16, `01_cohort`: the age-12/16 loop filtered on `recordstart`/`recordend` (not columns
+  of GBAADRESOBJECT) → now `GBADATUMAANVANGADRESHOUDING`/`GBADATUMEINDEADRESHOUDING`, as in
+  age21; and it created `new_postcode4_age*` while the next line and `03_outcomes` use
+  `postcode4_age*` → renamed to `postcode4_age*`.
+- age35, `03_outcomes`: the "delete observations if outcomes are missing" filter ran on a data
+  frame still grouped by `birth_year` (size mismatch error) → `ungroup()` first.
