@@ -49,9 +49,11 @@
 #        with a rise while above 80% (3y9m). For Verian the share excludes
 #        Apeldoorn (not in the data); the regression do-file drops Apeldoorn.
 #
-# Run from the repository root. Reading the full GBA address and postcode
-# files takes a lot of memory; they are filtered to the relevant persons and
-# addresses right after reading.
+# Run from the repository root. GBAPERSOONTAB, GBAADRESOBJECTBUS,
+# VSLPOSTCODEBUS and KINDOUDERTAB are read from their SQLite versions (.db)
+# when the config points to them (read_cbs() in jgz_helpers.R): only the rows
+# of the children, their parents and siblings and their addresses are read.
+# The yearly files (income, education, health costs) are still read as .sav.
 # =============================================================================
 
 source("src/jgz/jgz_helpers.R")
@@ -104,38 +106,58 @@ gba_cols <- c("RINPERSOONS", "RINPERSOON", "GBAGEBOORTELAND", "GBAGESLACHT",
               "GBAGEBOORTELANDMOEDER", "GBAGEBOORTELANDVADER", "GBAAANTALOUDERSBUITENLAND",
               "GBAHERKOMSTGROEPERING", "GBAGENERATIE",
               "GBAGEBOORTEJAAR", "GBAGEBOORTEMAAND", "GBAGEBOORTEDAG")
-gba <- read_sav(cbs_path(loc$gba_persoon_file), col_select = any_of(gba_cols))
-# Columns can differ between GBAPERSOONTAB versions: stop if an ID or the
-# birth date is missing, otherwise continue with an empty column.
-gba_missing <- setdiff(gba_cols, names(gba))
-if (any(gba_missing %in% c("RINPERSOONS", "RINPERSOON", "GBAGEBOORTEJAAR",
-                           "GBAGEBOORTEMAAND", "GBAGEBOORTEDAG"))) {
-  stop("Not in ", loc$gba_persoon_file, ": ", paste(gba_missing, collapse = ", "))
+
+# GBAPERSOONTAB is read twice (from the .db only the rows needed): here the
+# children born in the birth years of the sample, in section 4 their parents
+# and the mothers' other children. prep_gba() is the same for both.
+prep_gba <- function(gba) {
+  # Columns can differ between GBAPERSOONTAB versions: stop if an ID or the
+  # birth date is missing, otherwise continue with an empty column.
+  gba_missing <- setdiff(gba_cols, names(gba))
+  if (any(gba_missing %in% c("RINPERSOONS", "RINPERSOON", "GBAGEBOORTEJAAR",
+                             "GBAGEBOORTEMAAND", "GBAGEBOORTEDAG"))) {
+    stop("Not in ", loc$gba_persoon_file, ": ", paste(gba_missing, collapse = ", "))
+  }
+  for (v in gba_missing) {
+    warning(v, " not in ", loc$gba_persoon_file, ": left empty in the output")
+    gba[[v]] <- NA_character_
+  }
+  herkomst_label <- as.character(as_factor(gba$GBAHERKOMSTGROEPERING, levels = "labels"))
+  if (nrow(gba) > 0 && all(grepl("^[0-9]+$", na.omit(herkomst_label)))) {
+    warning("GBAHERKOMSTGROEPERING has no value labels: ETNGRP cannot be derived (all 7)")
+  }
+  gba %>%
+    mutate(herkomst_label = herkomst_label) %>%
+    mutate(across(c(RINPERSOONS, RINPERSOON), as_chr),
+           birthdate = as.Date(sprintf("%s-%s-%s", as_chr(GBAGEBOORTEJAAR),
+                                       as_chr(GBAGEBOORTEMAAND), as_chr(GBAGEBOORTEDAG))))
 }
-for (v in gba_missing) {
-  warning(v, " not in ", loc$gba_persoon_file, ": left empty in the output")
-  gba[[v]] <- NA_character_
+
+# KINDOUDERTAB is read twice as well: here the parents of the children, in
+# section 4 all children of their mothers (for the birth order).
+prep_kindouder <- function(kindouder) {
+  kindouder <- kindouder %>%
+    mutate(across(everything(), as_chr)) %>%
+    mutate(across(everything(), function(x) ifelse(x == "", NA, x)))
+  names(kindouder) <- sub("^RINPERSOONSMA$", "RINPERSOONSMa", sub("^RINPERSOONMA$", "RINPERSOONMa",
+                      sub("^RINPERSOONSPA$", "RINPERSOONSpa", sub("^RINPERSOONPA$", "RINPERSOONpa",
+                      toupper(names(kindouder))))))
+  kindouder
 }
-herkomst_label <- as.character(as_factor(gba$GBAHERKOMSTGROEPERING, levels = "labels"))
-if (all(grepl("^[0-9]+$", na.omit(herkomst_label)))) {
-  warning("GBAHERKOMSTGROEPERING has no value labels: ETNGRP cannot be derived (all 7)")
-}
-gba <- gba %>%
-  mutate(herkomst_label = herkomst_label) %>%
-  mutate(across(c(RINPERSOONS, RINPERSOON), as_chr),
-         birthdate = as.Date(sprintf("%s-%s-%s", as_chr(GBAGEBOORTEJAAR),
-                                     as_chr(GBAGEBOORTEMAAND), as_chr(GBAGEBOORTEDAG))))
+
+birth_years <- seq(as.integer(format(as.Date(cfg$catch_birth_date_min), "%Y")),
+                   as.integer(format(as.Date(cfg$catch_birth_date_max), "%Y")))
+gba <- read_cbs(loc$gba_persoon_file, cols = gba_cols,
+                filter_in = list(GBAGEBOORTEJAAR = birth_years)) %>%
+  prep_gba()
 
 kids <- gba %>%
   filter(birthdate >= as.Date(cfg$catch_birth_date_min),
          birthdate <= as.Date(cfg$catch_birth_date_max))
 log_n("Children born in the birth-date range (GBA)", nrow(kids))
 
-kindouder <- read_sav(cbs_path(loc$kindouder_file)) %>%
-  mutate(across(everything(), as_chr)) %>%
-  mutate(across(everything(), function(x) ifelse(x == "", NA, x)))
-names(kindouder) <- sub("^RINPERSOONSMA$", "RINPERSOONSMa", sub("^RINPERSOONMA$", "RINPERSOONMa",
-                    sub("^RINPERSOONSPA$", "RINPERSOONSpa", sub("^RINPERSOONPA$", "RINPERSOONpa", names(kindouder)))))
+kindouder <- read_cbs(loc$kindouder_file, filter_in = list(RINPERSOON = kids$RINPERSOON)) %>%
+  prep_kindouder()
 
 kids <- kids %>% left_join(kindouder, by = c("RINPERSOONS", "RINPERSOON"))
 
@@ -369,6 +391,21 @@ sample <- sample %>%
          birth_year    = as.integer(format(birthdate, "%Y")))
 
 # --- Parents: birth dates, sex; birth order and mother's age at births ----------
+# All children of the mothers in the sample (any birth year)
+sib_links <- read_cbs(loc$kindouder_file,
+                      filter_in = list(RINPERSOONMa = unique(sample$RINPERSOONMa))) %>%
+  prep_kindouder() %>%
+  filter(RINPERSOONMa %in% sample$RINPERSOONMa) %>%
+  select(RINPERSOONSMa, RINPERSOONMa, RINPERSOONS, RINPERSOON)
+
+# GBA of the parents and siblings that are not among the children read in
+# section 1 (born outside the birth years of the sample)
+others <- setdiff(unique(c(sample$RINPERSOONMa, sample$RINPERSOONpa, sib_links$RINPERSOON)),
+                  c(NA, gba$RINPERSOON))
+gba <- bind_rows(gba, read_cbs(loc$gba_persoon_file, cols = gba_cols,
+                               filter_in = list(RINPERSOON = others)) %>% prep_gba()) %>%
+  distinct(RINPERSOONS, RINPERSOON, .keep_all = TRUE)
+
 parent_gba <- gba %>% select(RINPERSOONS, RINPERSOON, GBAGESLACHT, birthdate)
 sample <- sample %>%
   left_join(parent_gba %>% rename(RINPERSOONSMa = RINPERSOONS, RINPERSOONMa = RINPERSOON,
@@ -378,10 +415,7 @@ sample <- sample %>%
                                   gbageslachtvader = GBAGESLACHT, birthdate_pa = birthdate),
             by = c("RINPERSOONSpa", "RINPERSOONpa"))
 
-# All children of the mothers in the sample (any birth year)
-siblings <- kindouder %>%
-  filter(RINPERSOONMa %in% sample$RINPERSOONMa) %>%
-  select(RINPERSOONSMa, RINPERSOONMa, RINPERSOONS, RINPERSOON) %>%
+siblings <- sib_links %>%
   inner_join(gba %>% select(RINPERSOONS, RINPERSOON, sib_birth = birthdate),
              by = c("RINPERSOONS", "RINPERSOON")) %>%
   # Coen (PREPARE): order by birth year and month, birth_order = _n, so

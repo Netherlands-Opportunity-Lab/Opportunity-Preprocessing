@@ -88,8 +88,13 @@ no `join_by()`, `if_any()` or `relationship =`.
 - **CBS file versions -- decided 23 Oct 2026.** GBAPERSOONTAB,
   GBAADRESOBJECTBUS, VSLPOSTCODEBUS and KINDOUDERTAB are the same versions as
   in prim8_a/prim8_b (2024/2024/2026031/2025; before: 2023/2023/2025031/2023),
-  so the pipelines can share files (also the converted `.db` versions in
-  `sqlexperiment/`). Newer versions include CBS corrections, so counts in 01
+  so the pipelines can share files. These four are read from their SQLite
+  versions (`.db` in the "geconverteerde data" folders, as prim8_a in
+  `sqlexperiment/`) with `read_cbs()` in `jgz_helpers.R`: only the rows of the
+  JGZ children, their parents, siblings and addresses are read, instead of the
+  whole file. Needs the R packages DBI and RSQLite; pointing a path in the
+  config to the `.sav` gives the same result with `read_sav()`. The yearly
+  files (income, education, health costs) are still read as `.sav`. Newer versions include CBS corrections, so counts in 01
   and 03 can shift slightly. The CBS code lists in 03 (LANDAKTUEELREFV9,
   OPLEIDINGSNRREFV24, CTOREFV8) stay the versions Coen used, for his ETNGRP
   and ISCED coding; prim8_a uses V15 / V36 / V13.

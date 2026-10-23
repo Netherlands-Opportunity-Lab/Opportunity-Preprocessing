@@ -118,11 +118,16 @@ default:
     # Same versions as the prim8_a/prim8_b pipelines (config/P_2_1_prim8_*.yml),
     # since 23 Oct 2026; before: GBAPERSOON2023TABV1, GBAADRESOBJECT2023BUSV1,
     # VSLPOSTCODEBUSV2025031, KINDOUDER2023TABV1.
+    # Read from the SQLite versions (.db, "geconverteerde data", as in
+    # sqlexperiment/): only the rows needed are read. To read the .sav instead
+    # (slower, same result), use the .sav path, e.g.
+    # "Bevolking/GBAPERSOONTAB/2024/GBAPERSOON2024TABV3.sav". Reading a .db
+    # needs the R packages DBI and RSQLite.
     data_folder:      "G:/"
-    gba_persoon_file: "Bevolking/GBAPERSOONTAB/2024/GBAPERSOON2024TABV3.sav"
-    gba_adres_file:   "Bevolking/GBAADRESOBJECTBUS/GBAADRESOBJECT2024BUSV1.sav"
-    vslpostcode_file: "BouwenWonen/VSLPOSTCODEBUS/VSLPOSTCODEBUSV2026031.sav"
-    kindouder_file:   "Bevolking/KINDOUDERTAB/KINDOUDER2025TABV2.sav"
+    gba_persoon_file: "Bevolking/GBAPERSOONTAB/2024/geconverteerde data/GBAPERSOON2024TABV3.db"
+    gba_adres_file:   "Bevolking/GBAADRESOBJECTBUS/geconverteerde data/GBAADRESOBJECT2024BUSV1.db"
+    vslpostcode_file: "BouwenWonen/VSLPOSTCODEBUS/geconverteerde data/VSLPOSTCODEBUSV2026031.db"
+    kindouder_file:   "Bevolking/KINDOUDERTAB/geconverteerde data/KINDOUDER2025TABV2.db"
 
     # --- reference files (03) -----------------------------------------------------
     # PC4 -> organisation with coverage dates (org, gemeente, postcode_4, aanvang, einde)
