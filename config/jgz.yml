@@ -33,6 +33,18 @@ default:
     sex_girl: 2
     # BMI outlier rule: drop |z| > this, z computed within contact moment x sex
     bmi_z_max: 5
+    # Top-10% BMI flag: 90th percentile within sex (TRUE) or over boys and
+    # girls together (FALSE, as Coen's gradient do-file). Bastian (20 Oct):
+    # "the whole group" -- confirm which is meant.
+    bmi_p90_by_sex: TRUE
+    # Contact-moment windows: "fixed" (age windows of the old script) or
+    # "histogram" (Coen's histogram/dal method, cut at the lowest point between
+    # the peaks of the age distribution). Both are written to
+    # contact_moment_windows.xlsx for comparison.
+    cm_method: "fixed"
+    # One measurement per child per window: closest to the nominal age
+    # ("nominal", Bastian 30 Sep) or to the peak of the window ("peak", Coen)
+    cm_target: "nominal"
     # SDQ cut-offs
     sdq_cutoffs: [11, 14]
 
@@ -48,48 +60,69 @@ default:
 
     # --- 06_build_catchment_sample.R ---------------------------------------------
     # Rebuilds Data_CatchmentArea_3pooled_withvariables (Coen, Sept 2020) for
-    # the bereik analyses. Coen's do-files are not available, so the choices
-    # below were reconstructed from the variable list of his dataset and the
-    # do-file overview. Check them before using the results.
+    # the bereik analyses. First reconstructed without Coen's do-files; on
+    # 2026-10-23 checked against "20200916 SAMPLE SELECTION", "20200916 PREPARE
+    # CHILD AND FAMILY CHARACTERISTICS" and "20200913 ANALYSIS 3 CONTACT
+    # MOMENTS". The defaults below follow those do-files.
     #
-    # Children born in this range are candidates; the coverage rule below
-    # narrows this down further.
-    catch_birth_date_min: "2008-01-01"
-    catch_birth_date_max: "2015-12-31"
+    # Children born in this range are candidates (Coen: 2005-2018); the
+    # cohort rule below narrows this down per organisation.
+    catch_birth_date_min: "2005-01-01"
+    catch_birth_date_max: "2018-12-31"
     # Contact-moment windows in completed months of age (calendar months since
-    # the birth month, like Coen's %tm variables). Overall 22-53 months as in the
-    # do-file overview; the split between the moments is an assumption based on
-    # the contact-moment windows in 02.
+    # the birth month, like Coen's %tm variables) -- as in SAMPLE SELECTION.
     catch_cm_windows:
       2y:   [22, 33]
-      3y:   [34, 42]
-      3y9m: [43, 53]
+      3y:   [34, 43]
+      3y9m: [44, 53]
     # A child is in the sample when he/she lives continuously in the catchment
     # area of ONE organisation during the whole window (first to last month
     # above). Address spells that follow each other within this many months
-    # count as continuous (1 = next spell starts in the same or next month).
+    # count as continuous (1 = next spell starts in the same or next month;
+    # Coen: "remove flag for records that start 1 month later").
     catch_max_gap_months: 1
-    # An area only counts while it is covered: between `aanvang` and `einde` in
-    # the PC4 file, and not after the last contact month of that organisation
-    # in the JGZ panel (end of the data delivery).
-    catch_use_data_end: TRUE
+    # An area counts until its `einde` in the PC4 file. Coen did not use
+    # `aanvang` (FALSE); TRUE also requires the window to start after it.
+    catch_use_aanvang: FALSE
+    # TRUE: an area also stops counting after the last contact month of that
+    # organisation in the JGZ panel. Coen used the cohort rule instead (FALSE).
+    catch_use_data_end: FALSE
+    # Birth cohorts per organisation ("coen" or "none"): per organisation the
+    # share of children observed per birth month; first cohort = first month
+    # with a drop in that share while above catch_cohort_min_share (2y window),
+    # last cohort = last month with a rise while above it (3y9m window).
+    catch_cohort_rule: "coen"
+    catch_cohort_min_share: 0.8
+    # Left out when computing the shares (Coen: Verian without Apeldoorn,
+    # which is not in the data). The regression do-file drops Apeldoorn.
+    catch_cohort_exclude:
+      org: 10
+      gemeente: ["Apeldoorn"]
+    # Corrections to the PC4 file (Coen: Verian's 8080 is 8180; 8080 is
+    # otherwise listed for both Verian and Icare)
+    catch_pc4_corrections:
+      - {org: 10, from: 8080, to: 8180}
     # "Observed" at a contact moment = at least one row in the JGZ panel (one
-    # row = at least one recorded item) with an age within the window. TRUE:
-    # only count contacts by the catchment organisation itself.
+    # row = at least one recorded item) with an age within the window, any
+    # organisation (as Coen). TRUE: only the catchment organisation itself.
     catch_observed_same_org: FALSE
     # Reference age for the "cm_" variables (income, household income, health
-    # costs, addresses of child and parents, postcode_4). The regression
-    # do-file mentions both "calendar year of contact moment" and "age 36
-    # months"; 36 months is the middle (3y) contact moment.
+    # costs, addresses of child and parents, postcode_4): 36 months, as in
+    # ANALYSIS 3 CONTACT MOMENTS (local age_months=36).
     catch_reference_age_months: 36
-    # Year of the education file (HOOGSTEOPLTAB) for the parents
-    catch_education_year: 2019
+    # Year of the education file (HOOGSTEOPLTAB) for the parents (Coen: 2018)
+    catch_education_year: 2018
     # Columns to keep from HOOGSTEOPLTAB (missing ones are skipped with a message)
     catch_education_cols: [OPLNRHB, OPLNRHG, OPLNIVSOI2016AGG4HBMETNIRWO,
                            OPLNIVSOI2016AGG4HGMETNIRWO, RICHTPLTSHBMETNIRWO, GEWICHTHOOGSTEOPL]
-    # Health costs: columns whose name matches this pattern count as mental
-    # health care (GGZ); mental care = any such cost > 0 in the year.
-    catch_mental_care_pattern: "GGZ"
+    # Health costs as in Coen's PREPARE do-file: total = sum of these columns
+    # (missing = 0); mental care = any of the second list not 0
+    catch_health_cost_cols: [ZVWKHUISARTS, ZVWKFARMACIE, ZVWKMONDZORG, ZVWKZIEKENHUIS,
+                             ZVWKPARAMEDISCH, ZVWKHULPMIDDEL, ZVWKZIEKENVERVOER, ZVWKGEBOORTEZORG,
+                             ZVWKBUITENLAND, ZVWKOVERIG, ZVWKEERSTELIJNSPSYCHO, ZVWKGGZ,
+                             ZVWKGENBASGGZ, ZVWKSPECGGZ, ZVWKGERIATRISCH, ZVWKWYKVERPLEGING]
+    catch_mental_care_cols: [ZVWKEERSTELIJNSPSYCHO, ZVWKGGZ, ZVWKGENBASGGZ, ZVWKSPECGGZ,
+                             NOPZVWKGGZMV, NOPZVWKGGZZVINST, NOPZVWKGGZZVZELF, NOPZVWKGGZOVERIG]
 
   file_locations:
     # --- raw CBS microdata (00) ---------------------------------------------
@@ -154,8 +187,15 @@ default:
     catch_kindouder_file:   "Bevolking/KINDOUDERTAB/KINDOUDER2023TABV1.sav"
     # PC4 -> organisation with coverage dates (org, gemeente, postcode_4, aanvang, einde)
     catch_pc4_org_file:     "resources/jgz_pc4gebieden.csv"
-    # Country -> western / non-western (for ETNGRP)
+    # Country -> western / non-western (fallback for ETNGRP)
     catch_land_ref_file:    "resources/LANDAKTUEELREF10.sav"
+    # CBS reference files used by Coen. When they exist, ETNGRP and
+    # pa_/ma_ISCED2011LevelHB are built exactly as in his do-files; otherwise
+    # ETNGRP comes from the fallback above and ISCED stays empty. Check the
+    # versions available in RA.
+    catch_land_etngrp_file: "K:/Utilities/Code_Listings/SSBreferentiebestanden/Geconverteerde data/LANDAKTUEELREFV9.dta"
+    catch_oplnr_ref_file:   "K:/Utilities/Code_Listings/SSBreferentiebestanden/Geconverteerde data/OPLEIDINGSNRREFV24.dta"
+    catch_cto_ref_file:     "K:/Utilities/Code_Listings/SSBreferentiebestanden/Geconverteerde data/CTOREFV8.dta"
     # Output: Stata file with the variable names of Coen's dataset (read by the
     # bereik regression do-file) and an .rds copy
     catch_sample_file:      "H:/JGZ-Pilot-Data/Data_CatchmentArea_3pooled_withvariables_R.dta"

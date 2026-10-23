@@ -21,7 +21,7 @@ no `join_by()`, `if_any()` or `relationship =`.
 |---|---|---|---|
 | `00_clean_and_merge.R` | JGZ ID file, corrected ZONL ID file, health file | `JGZ_panel.rds` + cleaning diagnostics | Cleans the ID and health files, resolves duplicate/conflicting records (switch detection), merges health data to RIN and collapses to one row per child x age |
 | `01_data_for_maps.R` | panel, GBAADRESOBJECTBUS, postcode lookup | `jgz_gba_postcode_data.rds` | Adds the GBA address and PC4 at the date of each contact moment |
-| `02_create_excel_info_maps.R` | output of 01 | `jgz_maps_{bmi,wiechen,sdq}.xlsx`, `cm_<visit>.rds` | Assigns contact moments, one measurement per child per visit, BMI / Wiechen / SDQ per PC3 and PC4 with small-cell suppression |
+| `02_create_excel_info_maps.R` | output of 01 | `jgz_maps_{bmi,wiechen,sdq}.xlsx`, `cm_<visit>.rds`, `contact_moment_windows.xlsx` | Assigns contact moments (fixed windows, or Coen's histogram/dal method via `cm_method`), one measurement per child per visit, BMI / Wiechen / SDQ per PC3 and PC4 with small-cell suppression |
 | `03_to_tidy_data.R` | gradient Excel files | `*_tidy.xlsx` | Reshapes gradient output (20 income bins) from wide to long |
 | `check_function.R` | – | – | Disclosure checks for gradients (used by 04) |
 | `04_to_export.R` | `*_tidy.xlsx` | `*_tidy_export.xlsx` | Combines speech/language files and runs the checks |
@@ -46,32 +46,53 @@ output of 06.
   checking `table(geslacht)`.
 - **BMI units (02).** Assumes weight in grams and length in mm; 02 prints the
   median BMI per visit and warns if it is implausible.
-- **BMI percentile check (check_function.R).** Removes a percentile when its
-  *value* is below 10, as before. Confirm whether this was meant as a
-  plausibility check or as a rule on the number of observations.
+- **BMI percentile check (check_function.R).** Resolved with Coen's gradient
+  do-file: the p10-p90 columns hold the number of children above each
+  percentile per income bin (the share in the older version), so "value below
+  10" was the small-cell rule. Now applied to the count and to N - count.
+- **Contact moments (02).** `cm_method: "histogram"` uses Coen's histogram/dal
+  method (20210705 ANALYSIS GRADIENTS); default still `"fixed"`. Compare the
+  two in `contact_moment_windows.xlsx` before switching. `cm_target` chooses
+  the measurement closest to the nominal age (Bastian) or to the peak (Coen).
+- **Top-10% BMI (02).** `bmi_p90_by_sex`: within sex (current) or boys and
+  girls together (Coen). The flag is now `BMI > p90` (was `>=`), as in Coen's
+  do-file.
+- **Wiechen export (02).** All three categories (+, M, -) are exported per
+  item, so one can be derived from the other two (Bastian, 20 Oct). Decide
+  which two-way split is exported before the next export request.
 - **Secondary suppression.** Tables are suppressed cell by cell; complementary
   cells (e.g. boys = total - girls) are not checked.
 - **Catchment output** contains counts below 10; apply output rules before
   export.
-- **06 is a reconstruction.** Coen's do-files (2020) could not be exported, so
-  06 was rebuilt from the variable list of his dataset. The choices that could
-  not be checked are `catch_*` settings in the config and listed as [C1]-[C8]
-  at the top of the script: contact-moment windows, the continuity rule,
-  coverage/data end per organisation, what counts as observed, the reference
-  age (36 months) for income/addresses/health costs, the health-cost total,
-  ETNGRP, and ISCED (not rebuilt, empty column). Before using it, compare its
-  output with Coen's `H:/Archive/Coen/TempData/Data_CatchmentArea_3pooled_withvariables.dta`
-  inside Remote Access (number of children per `org_catchment`, `d_obs_cat`
-  distribution) and adjust the settings where they differ.
+- **06 is a reconstruction, now checked against Coen's do-files.** First
+  rebuilt from the variable list of his dataset; on 2026-10-23 compared with
+  his 2020 do-files (SAMPLE SELECTION, PREPARE CHILD AND FAMILY
+  CHARACTERISTICS, ANALYSIS 3 CONTACT MOMENTS) and the `catch_*` defaults set
+  to his choices: windows 22-33 / 34-43 / 44-53 months, continuity with a
+  gap of at most one month, PC4 end dates without start dates, his
+  data-driven birth-cohort window per organisation [C9], addresses in the
+  36-month month (earliest spell), his health-cost and mental-care columns,
+  birth order by month, PSECJ for 2007-2010 incomes, education file 2018, and
+  ETNGRP / ISCED from his CBS reference files when they exist (paths in the
+  config). Remaining differences: postcodes per address use validity dates
+  (Coen: first registered postcode), and ETNGRP falls back on country labels
+  if LANDAKTUEELREFV9 is not found. Compare the output with Coen's
+  `H:/Archive/Coen/TempData/Data_CatchmentArea_3pooled_withvariables.dta`
+  inside Remote Access (children per `org_catchment`, `d_obs_cat`
+  distribution) and check the cohort windows printed by 06.
 - **PC4 file.** `resources/jgz_pc4gebieden.csv` is the copy from
   `Opportunity-Analysis-Map/JGZ/resources`; the copy in "Background info
-  preprocessing JGZ" on SharePoint has broken quoting. PC4 8080 is listed
-  twice; 06 uses the first row and warns.
+  preprocessing JGZ" on SharePoint has broken quoting. PC4 8080 is listed for
+  Verian and Icare; 06 applies Coen's correction (Verian 8080 -> 8180).
 
 ## Checking a run of 00 against Stata
 
 00 prints the counts from the Stata log next to its own, e.g.
 `[OK] exact duplicate health rows dropped: 3,166 (Stata log: 3,166)`.
+The variable counts (174 and 172) count the key variables too, as the
+do-file's matrices do. The CBS placeholder hash is expected to drop 0 rows:
+the 13,013 rows were in the old ZONL ID file, which the corrected file
+replaces (do-file: "THIS ISSUE HAD BEEN SOLVED WITH THE NEW ZONL ID DATA").
 Three deliberate differences can change the cleaned values (not the row
 counts): `woonplaats` is no longer overwritten with `gem` (typo in the
 do-file); the extra country-name corrections that the do-file applied only to

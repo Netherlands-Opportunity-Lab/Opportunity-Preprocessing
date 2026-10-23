@@ -2,6 +2,9 @@
 # JGZ pilot -- 00. Clean and merge
 #
 # R translation of the Stata do-file "20220330 JGZ DATA - CLEAN AND MERGE".
+# Checked (2026-10-23) against the full "20200908 JGZ DATA - CLEAN AND MERGE"
+# do-file by Coen van de Kraats, found outside RA; line numbers in comments
+# ("do-file line N") refer to that version.
 # Builds a panel with one row per child (RINPERSOONS + RINPERSOON) per age in
 # days (leeftijd), combining the four health domains of the four JGZ
 # organisations.
@@ -189,13 +192,16 @@ check_n(sum(no_onderwerp), 456, "ID rows without Onderwerp dropped")
 # --- CBS placeholder hash ------------------------------------------------------------
 # CBS fills an empty uploaded child ID with one fixed hash; it is not a child.
 # Removed BEFORE the duplicates step below: these rows share child ID x
-# organisation x Onderwerp, so otherwise they would be counted there and the
-# counts would not match the cleaning flow (12 duplicates, 13,013 placeholder
-# rows). The cleaned data is the same in both orders.
+# organisation x Onderwerp, so otherwise they would be counted there. The
+# cleaned data is the same in both orders.
+# The do-file heads this step with "THIS ISSUE HAD BEEN SOLVED WITH THE NEW
+# ZONL ID DATA": the 13,013 placeholder rows were in the OLD ZONL ID file,
+# which is replaced above, so 0 rows are expected here now.
 if (nzchar(cfg$placeholder_hash)) {
   is_placeholder <- id_combined$KindNummer_crypt %in% cfg$placeholder_hash
   id_combined <- id_combined[!is_placeholder, ]
-  check_n(sum(is_placeholder), 13013, "ID rows with the CBS placeholder hash dropped (13,013 or 13,014)")
+  check_n(sum(is_placeholder), 0,
+          "ID rows with the CBS placeholder hash dropped (13,013 in the old ZONL file)")
 }
 
 # --- Ambiguous duplicates ------------------------------------------------------------
@@ -414,6 +420,10 @@ for (v in intersect(cat_remove, names(health_clean))) {
 }
 
 # --- Collapse to one row per contact moment ----------------------------------------------
+# The variables that were turned into dummies are dropped first (do-file line
+# 898); otherwise they would be collapsed with (max) and carried into the
+# later switch detection (13 extra variables there).
+health_clean <- health_clean[, setdiff(names(health_clean), cat_dummies)]
 health_clean <- collapse_all(health_clean, group_vars)
 stopifnot(!anyDuplicated(health_clean[, group_vars]))
 saveRDS(health_clean, work_path("Health_by_onderwerp.rds"))
@@ -462,7 +472,8 @@ write_matrix(merges, work_path("Merges.xlsx"), "merges")
 health_merged <- bind_rows(merge1, merge3) %>%
   filter(.matched) %>%
   select(-.matched) %>%
-  filter(!is_blank(RINPERSOONS)) %>%
+  filter(!is_blank(RINPERSOON)) %>%                # do-file line 1067
+
   relocate(RINPERSOONS, RINPERSOON) %>%
   rename(any_of(c(d_kmn_uniek_miss = "d_kindmogelijknietunieknr_miss",
                   d_kmn_uniek_0    = "d_kindmogelijknietunieknr_0",
@@ -486,7 +497,8 @@ check_n(sum(full_dup), 482, "full-row duplicates dropped after merge")
 
 merged_group_vars <- c("RINPERSOONS", "RINPERSOON", "databestand", "leeftijd")
 merged_all_vars <- setdiff(names(health_merged), merged_group_vars)
-check_n(length(merged_all_vars), 174, "variables in RIN x domain x age switch detection")
+# The do-file's matrix has 174 rows: all variables, the 4 key variables included
+check_n(ncol(health_merged), 174, "variables in RIN x domain x age switch detection (incl. keys)")
 
 sw <- detect_switches(health_merged, merged_all_vars, merged_group_vars)
 print(sw$table)
@@ -497,6 +509,8 @@ health_merged <- remove_conflicts(
   c("org", "woonplaats", "gem", "gebl1", "gebl2", "postcode", "gewicht", "zwduur", "bestand"),
   sw
 )
+# Onderwerp and bestand are dropped before this collapse (do-file line 1326)
+health_merged <- health_merged[, setdiff(names(health_merged), c("Onderwerp", "bestand"))]
 health_merged <- collapse_all(health_merged, merged_group_vars)
 saveRDS(health_merged, work_path("Merged_by_onderwerp.rds"))
 
@@ -507,7 +521,7 @@ saveRDS(health_merged, work_path("Merged_by_onderwerp.rds"))
 
 domain_group_vars <- c("RINPERSOONS", "RINPERSOON", "leeftijd")
 domain_all_vars <- setdiff(names(health_merged), domain_group_vars)
-check_n(length(domain_all_vars), 172, "variables in RIN x age switch detection")
+check_n(ncol(health_merged), 172, "variables in RIN x age switch detection (incl. keys)")
 
 sw <- detect_switches(health_merged, domain_all_vars, domain_group_vars)
 print(sw$table)
@@ -548,9 +562,11 @@ max_vars <- c(
   "d_meertaal_miss", paste0("d_meertaal_", 1:3),
   "d_d_vvenum_miss", "d_d_vvenum_1", "d_d_vvenum_2"
 )
-# Strings in the (max) list (e.g. the Wiechen items "+", "-", "M") are kept
-# with (firstnm): max() of text is not meaningful in R, and after the conflict
-# removal above there is at most one value per child x age.
+# Strings in the (max) list are kept with (firstnm): max() of text is not
+# meaningful in R, and after the conflict removal above there is at most one
+# value per child x age. (In the raw file the Wiechen items are numeric codes
+# 1 = +, 2 = -, 3 = M -- Coen's gradient do-file tests `item == 2` -- so this
+# normally applies to no variable.)
 is_chr <- vapply(health_merged[intersect(max_vars, names(health_merged))], is.character, logical(1))
 firstnm_vars <- c(firstnm_vars, names(is_chr)[is_chr])
 max_vars <- setdiff(max_vars, names(is_chr)[is_chr])

@@ -69,14 +69,19 @@ bmi_p_check <- function(data, min_cell = 10) {
   # 1 + 3: every bin N >= min_cell and all bins present, per cm
   keep <- gradient_passes(data, "cm", data$N, data$N, min_cell)
   data <- data[keep, ]
-  # Kept from the old script: a percentile column is removed for a cm when
-  # any of its VALUES is below 10. This compares the BMI value itself (not a
-  # number of observations) with 10.
-  # TODO: confirm the intent -- plausibility check (BMI < 10) or a
-  # disclosure rule that was meant to use N?
+  # The p10 ... p90 columns are not BMI values: in Coen's gradient do-file
+  # ("20210713 ANALYSIS GRADIENTS - cases") they hold the NUMBER of children
+  # in the bin whose BMI is above that percentile (r(N) of bmi_cm<k>_p<p>==1,
+  # only filled when >= 10); in the earlier version the share. So the old
+  # rule "value below 10" was the small-cell rule on these counts. Applied
+  # here to the count and its complement (N - count); shares are converted
+  # to counts first. A percentile column fails for a cm as a whole.
   for (p in pcols) {
-    low <- tapply(data[[p]] < 10, data$cm, any)
-    data[[p]][data$cm %in% names(low)[low %in% TRUE]] <- NA
+    v <- data[[p]]
+    count <- if (is_proportion(v)) v * data$N else v
+    bad <- is.na(count) | count < min_cell | (data$N - count) < min_cell
+    fail <- tapply(bad, data$cm, any)
+    data[[p]][data$cm %in% names(fail)[fail %in% TRUE]] <- NA
   }
   data <- data[, colSums(!is.na(data)) > 0, drop = FALSE]
   label_bins(data)
