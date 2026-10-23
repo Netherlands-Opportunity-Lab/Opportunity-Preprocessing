@@ -21,19 +21,6 @@ default:
     # as intended. TRUE reproduces the Stata behaviour exactly.
     replicate_stata_string_fill: FALSE
 
-    # --- 02_contact_moments.R --------------------------------------------------
-    # Coding of `geslacht` in the JGZ data. Check with table(geslacht).
-    sex_boy: 1
-    sex_girl: 2
-    # Contact-moment windows: "fixed" (age windows of the earlier script) or
-    # "histogram" (Coen's histogram/dal method, cut at the lowest point between
-    # the peaks of the age distribution). Both are written to
-    # contact_moment_windows.xlsx for comparison.
-    cm_method: "fixed"
-    # Age to be closest to when a child has several measurements in a window:
-    # the nominal age ("nominal", Bastian 30 Sep) or the peak ("peak", Coen)
-    cm_target: "nominal"
-
     # --- 03_build_catchment_sample.R ---------------------------------------------
     # Rebuilds Data_CatchmentArea_3pooled_withvariables (Coen, Sept 2020) for
     # the bereik analyses. First reconstructed without Coen's do-files; on

@@ -29,7 +29,7 @@ no `join_by()`, `if_any()` or `relationship =`.
 |---|---|---|---|
 | `00_clean_and_merge.R` | JGZ ID file, corrected ZONL ID file, health file | `JGZ_panel.rds` + cleaning diagnostics | Cleans the ID and health files, resolves duplicate/conflicting records (switch detection), merges health data to RIN and collapses to one row per child x age. R translation of Coen's do-file "JGZ DATA - CLEAN AND MERGE" |
 | `01_add_gba_postcode.R` | panel (00), GBAADRESOBJECTBUS, VSLPOSTCODEBUS | `jgz_gba_postcode_data.rds` | Adds the GBA address and its PC4 on the date of each contact moment |
-| `02_contact_moments.R` | output of 01 | `cm_<visit>.rds` (15 files), `contact_moment_windows.xlsx` | Assigns each row to a contact moment (fixed windows, or Coen's histogram/dal method via `cm_method`) and adds BMI, sex, PC3/PC4, age in months and the target age |
+| `02_contact_moments.R` | output of 01 | `cm_<visit>.rds` (15 files) | Assigns each row to a contact moment (fixed age windows) and adds BMI, sex, PC3/PC4 and the target age |
 | `03_build_catchment_sample.R` | panel (00), GBA, KINDOUDER, income, education and health-cost files, `resources/jgz_pc4gebieden.csv` | `Data_CatchmentArea_3pooled_withvariables_R.dta` | Coen's catchment-area sample for the bereik analyses: children living in one organisation's area from 22 to 53 months, observed or not at 2y/3y/3y9m (`d_obs_cat`), with child and family characteristics. Variable names as in Coen's file, so the bereik regression do-file runs on it |
 | `jgz_helpers.R` | – | – | Config loading and shared helpers (sourced by all scripts) |
 
@@ -45,15 +45,24 @@ no `join_by()`, `if_any()` or `relationship =`.
   do-file); the gebl2-only country corrections are applied to gebl1 too; and
   string "fill empty" variables are filled with their real value
   (`replicate_stata_string_fill: TRUE` reproduces Stata exactly).
-- **`geslacht` coding (02).** Set `sex_boy` / `sex_girl` in the config after
-  checking `table(geslacht)`.
+- **`geslacht` coding (02).** 1 = boy, 2 = girl (checked in the data).
 - **BMI units (02).** Weight in grams and length in mm (as in the BDS and in
   Coen's code); 02 prints the median BMI per visit and warns if implausible.
-- **Contact moments (02).** `cm_method: "histogram"` uses Coen's
-  histogram/dal method (20210705 ANALYSIS GRADIENTS); default still
-  `"fixed"`. Compare the two in `contact_moment_windows.xlsx` before
-  switching. `cm_target` sets the age to be closest to: nominal (Bastian) or
-  the peak (Coen).
+- **Contact moments (02) -- decided 23 Oct 2026.**
+  - *Windows:* we use the fixed age windows from the original script; the
+    option to compute them live with Coen's histogram/dal method (20210705
+    ANALYSIS GRADIENTS) is removed. The fixed bounds are most likely that
+    method's outcome on the JGZ data, frozen in the script (irregular bounds
+    just before the next visit, switching from days to months exactly where
+    his method does), so both give the same windows while fixed bounds stay
+    reproducible across data deliveries. Origin still to be confirmed with
+    Bastian.
+  - *Several measurements in one window:* the analyses use the measurement
+    closest to the nominal age of the visit (`target_age`, e.g. 1095 days for
+    3 years), not the histogram peak (Coen): one rule for all organisations
+    and easy to explain. Still to check in RA: how often children have several
+    measurements in a window -- if these are mostly follow-up visits after an
+    abnormal finding, the rule can affect prevalences.
 - **03 follows Coen's do-files.** First rebuilt from the variable list of his
   dataset; on 2026-10-23 compared with his 2020 do-files (SAMPLE SELECTION,
   PREPARE CHILD AND FAMILY CHARACTERISTICS, ANALYSIS 3 CONTACT MOMENTS) and
