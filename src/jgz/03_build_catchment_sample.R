@@ -1,5 +1,5 @@
 # =============================================================================
-# JGZ pilot -- 06. Catchment-area sample for the bereik (reach) analyses
+# JGZ preprocessing -- 03. Catchment-area sample for the bereik (reach) analyses
 #
 # Rebuilds Coen's Data_CatchmentArea_3pooled_withvariables.dta (Sept 2020): one
 # row per child who lived in the catchment area of one JGZ organisation during
@@ -55,16 +55,11 @@
 # =============================================================================
 
 source("src/jgz/jgz_helpers.R")
-suppressPackageStartupMessages({
-  library(haven)
-  library(openxlsx)
-})
+suppressPackageStartupMessages(library(openxlsx))
 options(scipen = 999)
 
 
 # ---- Helpers --------------------------------------------------------------------
-
-cbs_path <- function(...) file.path(loc$data_folder, ...)
 
 # Latest version of a yearly CBS file
 latest_file <- function(folder, pattern) {
@@ -73,13 +68,8 @@ latest_file <- function(folder, pattern) {
   sort(fl, decreasing = TRUE)[1]
 }
 
-# RINPERSOONS etc. as plain text, whatever haven made of it
-as_chr <- function(x) trimws(as.character(zap_labels(x)))
-
-# Dates and calendar months. Month index = year * 12 + month - 1 (like Stata %tm)
-ymd_date  <- function(x) as.Date(as_chr(x), format = "%Y%m%d")
-month_idx <- function(d) as.integer(format(d, "%Y")) * 12L + as.integer(format(d, "%m")) - 1L
-add_months <- function(d, m) {   # same day m months later (end of month if needed)
+# Same day m months later (end of month if needed)
+add_months <- function(d, m) {
   lt <- as.POSIXlt(d)
   first <- as.Date(sprintf("%04d-%02d-01", lt$year + 1900 + (lt$mon + m) %/% 12, (lt$mon + m) %% 12 + 1))
   last_day <- as.integer(format(as.Date(format(first + 31, "%Y-%m-01")) - 1, "%d"))
@@ -114,7 +104,7 @@ gba_cols <- c("RINPERSOONS", "RINPERSOON", "GBAGEBOORTELAND", "GBAGESLACHT",
               "GBAGEBOORTELANDMOEDER", "GBAGEBOORTELANDVADER", "GBAAANTALOUDERSBUITENLAND",
               "GBAHERKOMSTGROEPERING", "GBAGENERATIE",
               "GBAGEBOORTEJAAR", "GBAGEBOORTEMAAND", "GBAGEBOORTEDAG")
-gba <- read_sav(cbs_path(loc$catch_gba_persoon_file), col_select = any_of(gba_cols))
+gba <- read_sav(cbs_path(loc$gba_persoon_file), col_select = any_of(gba_cols))
 herkomst_label <- as.character(as_factor(gba$GBAHERKOMSTGROEPERING, levels = "labels"))
 if (all(grepl("^[0-9]+$", na.omit(herkomst_label)))) {
   warning("GBAHERKOMSTGROEPERING has no value labels: ETNGRP cannot be derived (all 7)")
@@ -130,7 +120,7 @@ kids <- gba %>%
          birthdate <= as.Date(cfg$catch_birth_date_max))
 log_n("Children born in the birth-date range (GBA)", nrow(kids))
 
-kindouder <- read_sav(cbs_path(loc$catch_kindouder_file)) %>%
+kindouder <- read_sav(cbs_path(loc$kindouder_file)) %>%
   mutate(across(everything(), as_chr)) %>%
   mutate(across(everything(), function(x) ifelse(x == "", NA, x)))
 names(kindouder) <- sub("^RINPERSOONSMA$", "RINPERSOONSMa", sub("^RINPERSOONMA$", "RINPERSOONMa",
@@ -183,28 +173,13 @@ if (isTRUE(cfg$catch_use_data_end)) {
 
 # Address history of the candidate children (and later their parents)
 persons <- unique(c(kids$RINPERSOON, kids$RINPERSOONpa, kids$RINPERSOONMa))
-adres <- read_sav(cbs_path(loc$catch_gba_adres_file)) %>%
-  rename_with(toupper) %>%
-  mutate(RINPERSOON = as_chr(RINPERSOON)) %>%
-  filter(RINPERSOON %in% persons) %>%
-  transmute(RINPERSOONS = as_chr(RINPERSOONS), RINPERSOON,
-            start = ymd_date(GBADATUMAANVANGADRESHOUDING),
-            end   = coalesce(ymd_date(GBADATUMEINDEADRESHOUDING), as.Date("2999-12-31")),
-            soortobjectnummer = as_chr(SOORTOBJECTNUMMER),
-            rinobjectnummer   = as_chr(RINOBJECTNUMMER))
+adres <- read_addresses(persons)
 
 # Postcode of each address over time (VSLPOSTCODEBUS with validity dates).
 # (Coen used one postcode per address object, the first registered one; the
 # validity dates are more precise and only matter for renumbered addresses.)
 objects <- unique(paste(adres$soortobjectnummer, adres$rinobjectnummer))
-postcodes <- read_sav(cbs_path(loc$catch_vslpostcode_file)) %>%
-  rename_with(toupper) %>%
-  mutate(soortobjectnummer = as_chr(SOORTOBJECTNUMMER), rinobjectnummer = as_chr(RINOBJECTNUMMER)) %>%
-  filter(paste(soortobjectnummer, rinobjectnummer) %in% objects) %>%
-  transmute(soortobjectnummer, rinobjectnummer,
-            pc_start = ymd_date(DATUMAANVPOSTCODENUMADRES),
-            pc_end   = coalesce(ymd_date(DATUMEINDPOSTCODENUMADRES), as.Date("2999-12-31")),
-            postcode_4 = suppressWarnings(as.integer(as_chr(POSTCODENUM))))
+postcodes <- read_postcodes(objects)
 
 # Child address spells x postcode periods x coverage period, in months
 kid_spells <- adres %>%

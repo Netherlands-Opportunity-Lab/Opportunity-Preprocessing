@@ -11,7 +11,9 @@
 #
 #   Input : JGZ ID file, corrected ZONL ID file, JGZ health file (SPSS)
 #   Output: loc$panel_file (JGZ_panel.rds), plus cleaning diagnostics
-#           (descriptives, switch matrices, merge counts) in the work folder
+#           (descriptives, switch matrices, merge counts) and the FRANKENSTEIN
+#           file (contact moments with conflicting values, for inspection) in
+#           the work folder. Intermediate datasets are not saved.
 #
 # Steps
 #   1. ID file: combine with corrected ZONL file, drop rows without RIN,
@@ -36,10 +38,7 @@
 # =============================================================================
 
 source("src/jgz/jgz_helpers.R")
-suppressPackageStartupMessages({
-  library(haven)
-  library(openxlsx)
-})
+suppressPackageStartupMessages(library(openxlsx))
 options(scipen = 999)
 
 ensure_dir(loc$work_folder)
@@ -142,8 +141,6 @@ remove_conflicts <- function(df, vars, sw) {
 
 id_file <- read_spss(loc$id_file)
 id_zonl <- read_spss(loc$id_file_zonl)
-saveRDS(id_file, work_path("8151mcuniekCBKV2.rds"))
-saveRDS(id_zonl, work_path("8151ZOrggroepOudeenNieuweLanduniekCBKV1.rds"))
 
 # Corrected ZONL file replaces the ZONL rows (bestand 2) of the original file
 zonl_prepared <- id_zonl %>%
@@ -218,11 +215,9 @@ print(descriptive)
 write_matrix(descriptive, file.path(loc$descriptives_folder, "IDfile_descriptives.xlsx"),
              "descriptive")
 
-saveRDS(id_combined, work_path("IDfile_clean_all.rds"))
 # Icare-overgewicht IDs are used to link Icare-visus (step 4)
 icare_overgewicht_ids <- id_combined %>%
   filter(org == ORG_CODES[["Icare"]], databestand == DOMAIN_CODES[["overgewicht"]])
-saveRDS(icare_overgewicht_ids, work_path("IDfile_clean_Icare_overgewicht.rds"))
 
 
 # =============================================================================
@@ -230,7 +225,6 @@ saveRDS(icare_overgewicht_ids, work_path("IDfile_clean_Icare_overgewicht.rds"))
 # =============================================================================
 
 health <- read_spss(loc$health_file)
-saveRDS(health, work_path("8151GezondheidsbestandxV2CBKV1.rds"))
 
 health_clean <- health %>%
   zap_labels() %>%
@@ -426,7 +420,6 @@ for (v in intersect(cat_remove, names(health_clean))) {
 health_clean <- health_clean[, setdiff(names(health_clean), cat_dummies)]
 health_clean <- collapse_all(health_clean, group_vars)
 stopifnot(!anyDuplicated(health_clean[, group_vars]))
-saveRDS(health_clean, work_path("Health_by_onderwerp.rds"))
 
 descriptive_health <- rbind(descriptive_health, n_by_org_domain(health_clean))
 print(descriptive_health)
@@ -512,7 +505,6 @@ health_merged <- remove_conflicts(
 # Onderwerp and bestand are dropped before this collapse (do-file line 1326)
 health_merged <- health_merged[, setdiff(names(health_merged), c("Onderwerp", "bestand"))]
 health_merged <- collapse_all(health_merged, merged_group_vars)
-saveRDS(health_merged, work_path("Merged_by_onderwerp.rds"))
 
 
 # =============================================================================

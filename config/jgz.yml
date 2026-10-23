@@ -1,19 +1,17 @@
-# Configuration for the JGZ (youth health care) pilot pipeline in src/jgz.
+# Configuration for the JGZ (youth health care) preprocessing in src/jgz.
 #
 # All scripts in src/jgz are run from the repository root, e.g.
 #   setwd("H:/Opportunity-Preprocessing"); source("src/jgz/00_clean_and_merge.R")
 # and read this file with config::get(). Change paths here, not in the scripts.
-#
-# Paths below are the ones that were hard-coded in the scripts before the
-# 2026-10 rewrite (see git history for the old versions). Where the old
-# scripts used different folders for the same thing, the choice made is noted.
+# The analysis and export scripts (map tables, gradients, export bundle) are
+# in Opportunity-Analysis-Map/JGZ with their own config.
 
 default:
   settings:
     # --- 00_clean_and_merge.R -----------------------------------------------
-    # CBS stand-in hash for an empty child ID (confirmed with CBS, see
-    # archive/jgz_data_clean_merge.R). Rows in the ID file with this value
-    # are dropped. Set to "" to disable.
+    # CBS stand-in hash for an empty child ID (confirmed with CBS, see Coen's
+    # do-file). Rows in the ID file with this value are dropped. Set to "" to
+    # disable.
     placeholder_hash: "07a6b530b148d85858a02420de14c297"
 
     # Category-3 ("fill empty") variables that are strings: the Stata do-file
@@ -23,42 +21,20 @@ default:
     # as intended. TRUE reproduces the Stata behaviour exactly.
     replicate_stata_string_fill: FALSE
 
-    # --- 02_create_excel_info_maps.R ------------------------------------------
-    # Minimum number of observations per published cell (CBS output rule).
-    min_cell: 10
-    # Coding of `geslacht` in the JGZ data (the 4-weeks block of the old
-    # script used 1/2; the other blocks compared against text labels, which
-    # never matched). Check with table(jgz$geslacht) and adjust if needed.
+    # --- 02_contact_moments.R --------------------------------------------------
+    # Coding of `geslacht` in the JGZ data. Check with table(geslacht).
     sex_boy: 1
     sex_girl: 2
-    # BMI outlier rule: drop |z| > this, z computed within contact moment x sex
-    bmi_z_max: 5
-    # Top-10% BMI flag: 90th percentile within sex (TRUE) or over boys and
-    # girls together (FALSE, as Coen's gradient do-file). Bastian (20 Oct):
-    # "the whole group" -- confirm which is meant.
-    bmi_p90_by_sex: TRUE
-    # Contact-moment windows: "fixed" (age windows of the old script) or
+    # Contact-moment windows: "fixed" (age windows of the earlier script) or
     # "histogram" (Coen's histogram/dal method, cut at the lowest point between
     # the peaks of the age distribution). Both are written to
     # contact_moment_windows.xlsx for comparison.
     cm_method: "fixed"
-    # One measurement per child per window: closest to the nominal age
-    # ("nominal", Bastian 30 Sep) or to the peak of the window ("peak", Coen)
+    # Age to be closest to when a child has several measurements in a window:
+    # the nominal age ("nominal", Bastian 30 Sep) or the peak ("peak", Coen)
     cm_target: "nominal"
-    # SDQ cut-offs
-    sdq_cutoffs: [11, 14]
 
-    # --- 05_final.R -----------------------------------------------------------
-    # Organisations whose results may be exported (6 LimburgNoord, 7 ZONL,
-    # 10 Verian, 12 Icare). Only include organisations that gave permission.
-    export_orgs: [7, 10]
-    # Also export pooled results (all organisations together)? Only when every
-    # organisation in the pool gave permission.
-    export_pooled: FALSE
-    # Also export "excluding organisation X" results for the orgs above?
-    export_excl: FALSE
-
-    # --- 06_build_catchment_sample.R ---------------------------------------------
+    # --- 03_build_catchment_sample.R ---------------------------------------------
     # Rebuilds Data_CatchmentArea_3pooled_withvariables (Coen, Sept 2020) for
     # the bereik analyses. First reconstructed without Coen's do-files; on
     # 2026-10-23 checked against "20200916 SAMPLE SELECTION", "20200916 PREPARE
@@ -125,66 +101,40 @@ default:
                              NOPZVWKGGZMV, NOPZVWKGGZZVINST, NOPZVWKGGZZVZELF, NOPZVWKGGZOVERIG]
 
   file_locations:
-    # --- raw CBS microdata (00) ---------------------------------------------
+    # --- raw JGZ files (00) --------------------------------------------------
     id_file:      "L:/8151mcuniekCBKV2.SAV"
     id_file_zonl: "L:/8151ZOrggroepOudeenNieuweLanduniekCBKV1.SAV"
     health_file:  "L:/8151GezondheidsbestandxV2CBKV1.SAV"
 
-    # Working folder for intermediate files and the cleaning diagnostics.
-    # (The old 00 wrote to "H:/JGZ-Pilot-Data", "H:/JGZ-Data-Pilot" and
-    # "H:/JGZ-Pilot_Data" -- the first one is used here.)
+    # Working folder for the cleaning diagnostics (switch matrices, merges,
+    # FRANKENSTEIN file)
     work_folder:        "H:/JGZ-Pilot-Data"
     descriptives_folder: "H:/JGZ-Pilot-Data/Descriptives Results"
 
-    # Final panel: one row per child (RIN) x age (leeftijd). Output of 00,
-    # input of 01.
+    # --- outputs, in pipeline order ------------------------------------------
+    # 00: one row per child (RIN) x age (leeftijd)
     panel_file: "H:/JGZ-Panel-Data/JGZ_panel.rds"
-
-    # --- address / postcode (01) -------------------------------------------
-    # Address history. Must cover the latest contact date in the JGZ data
-    # (2018 in the pilot).
-    gbaadres_file: "G:/Bevolking/GBAADRESOBJECTBUS/GBAADRESOBJECT2018BUSV1.dta"
-    # rinobjectnummer -> postcode lookup, produced outside R (see 01, step 3)
-    matched_postcode_file: "H:/JGZ-Pilot-Data/matched_postcode.dta"
-    # Panel with postcode at each contact moment. Output of 01, input of 02.
+    # 01: panel plus GBA address and postcode at each contact moment
     panel_postcode_file: "H:/JGZ-Pilot-Data/jgz_gba_postcode_data.rds"
+    # 02: one .rds per contact moment (input of the map tables in
+    # Opportunity-Analysis-Map/JGZ) and the contact-moment windows
+    contact_moment_folder: "H:/JGZ-Pilot-Data/contact_moments"
+    # 03: Stata file with the variable names of Coen's dataset (read by the
+    # bereik regression do-file), plus an .rds copy and a flow table
+    catch_sample_file: "H:/JGZ-Pilot-Data/Data_CatchmentArea_3pooled_withvariables_R.dta"
 
-    # --- map tables (02) ----------------------------------------------------
-    # One .rds per contact moment (the old script wrote these to scratch/JGZ)
-    contact_moment_folder: "scratch/jgz"
-    # Excel workbooks with BMI / Wiechen / SDQ per PC3 and PC4. Output of 02,
-    # input of 05.
-    maps_folder: "H:/JGZ-Pilot-Data/Descriptives Results/excel-info-maps"
-
-    # --- gradients (03, 04) ---------------------------------------------------
-    # Folder with the gradient Excel output. The old 03 used
-    # "H:/Archive/Sonya/JGZ-Pilot-Data/Gradients Analysis Results" while 04
-    # and 05 used the folder below; one folder is used for all three now.
-    gradients_folder: "H:/JGZ-Pilot-Data/Gradients Analysis Results"
-
-    # --- final export bundle (05) -----------------------------------------
-    proportions_folder:  "H:/Archive/Sonya/JGZ pilot data/Proportions Results"
-    bereik_folder:       "H:/Archive/Sonya/JGZ pilot data/Bereik Regression Results"
-    export_descriptives_folder: "H:/Archive/Sonya/JGZ pilot data/Descriptives Results"
-    export_folder:       "H:/Archive/Sonya/Export JGZ"
-
-    # --- catchment area ---------------------------------------------------
-    # SQLite version of VSLPOSTCODEBUS (see catchment_area_calculations.R)
-    catchment_postcode_db: "G:/BouwenWonen/VSLPOSTCODEBUS/VSLPOSTCODEBUS2026031.db"
-    catchment_postcode_table: ""   # "" = use the only table in the .db
-    catchment_persoon_file: "G:/Bevolking/GBAPERSOONTAB/2017/geconverteerde data/GBAPERSOON2017TABV1.DTA"
-    catchment_adres_file:   "G:/Bevolking/GBAADRESOBJECTBUS/2017/geconverteerde data/GBAADRESOBJECT2017BUSV1.dta"
-    catchment_output:       "H:/JGZ-Pilot-Data/Descriptives Results/CatchmentArea.xlsx"
-
-    # --- 06_build_catchment_sample.R ---------------------------------------------
+    # --- CBS microdata (01, 03) -------------------------------------------------
     # Root of the CBS microdata; yearly files (INPA, IPI, INHA, HOOGSTEOPL,
     # ZVWZORGKOSTEN) are found below it, latest version per year, as in the
-    # other pipelines of this repository.
-    data_folder: "G:/"
-    catch_gba_persoon_file: "Bevolking/GBAPERSOONTAB/2023/GBAPERSOON2023TABV1.sav"
-    catch_gba_adres_file:   "Bevolking/GBAADRESOBJECTBUS/GBAADRESOBJECT2023BUSV1.sav"
-    catch_vslpostcode_file: "BouwenWonen/VSLPOSTCODEBUS/VSLPOSTCODEBUSV2025031.sav"
-    catch_kindouder_file:   "Bevolking/KINDOUDERTAB/KINDOUDER2023TABV1.sav"
+    # other pipelines of this repository. The address and postcode files must
+    # cover the latest contact date in the JGZ data.
+    data_folder:      "G:/"
+    gba_persoon_file: "Bevolking/GBAPERSOONTAB/2023/GBAPERSOON2023TABV1.sav"
+    gba_adres_file:   "Bevolking/GBAADRESOBJECTBUS/GBAADRESOBJECT2023BUSV1.sav"
+    vslpostcode_file: "BouwenWonen/VSLPOSTCODEBUS/VSLPOSTCODEBUSV2025031.sav"
+    kindouder_file:   "Bevolking/KINDOUDERTAB/KINDOUDER2023TABV1.sav"
+
+    # --- reference files (03) -----------------------------------------------------
     # PC4 -> organisation with coverage dates (org, gemeente, postcode_4, aanvang, einde)
     catch_pc4_org_file:     "resources/jgz_pc4gebieden.csv"
     # Country -> western / non-western (fallback for ETNGRP)
@@ -196,6 +146,3 @@ default:
     catch_land_etngrp_file: "K:/Utilities/Code_Listings/SSBreferentiebestanden/Geconverteerde data/LANDAKTUEELREFV9.dta"
     catch_oplnr_ref_file:   "K:/Utilities/Code_Listings/SSBreferentiebestanden/Geconverteerde data/OPLEIDINGSNRREFV24.dta"
     catch_cto_ref_file:     "K:/Utilities/Code_Listings/SSBreferentiebestanden/Geconverteerde data/CTOREFV8.dta"
-    # Output: Stata file with the variable names of Coen's dataset (read by the
-    # bereik regression do-file) and an .rds copy
-    catch_sample_file:      "H:/JGZ-Pilot-Data/Data_CatchmentArea_3pooled_withvariables_R.dta"
