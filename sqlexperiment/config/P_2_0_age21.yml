@@ -1,0 +1,90 @@
+# SQLite experiment: same settings as config/P_2_0_age21.yml.
+# Differences: scratch_folder (and output file) -> scratch/age21_sql, and the files
+# that have a converted .db point to that .db (read with read_cbs(), see sqlexperiment/src/sql_helpers.R).
+# Still .sav here (no .db of exactly this version yet, so results stay comparable):
+#   Bevolking/KINDOUDERTAB/KINDOUDER2024TABV1.sav
+#   BouwenWonen/VSLPOSTCODEBUS/VSLPOSTCODEBUSV2025031.sav
+# read_cbs() reads these with read_sav() and filters in R. Pointing them to a .db is a config change only.
+default:
+  data_preparation:
+    # The name of the cohort
+    cohort_name: "age21"
+    
+    # Child birth date filters the cohort by age
+    child_birth_date_min: "01/01/1999"
+    child_birth_date_max: "31/12/2003"
+
+    # The cohort should live continuously in NL in the following period
+    child_live_start: 20
+    child_live_end: 21
+
+    # The cohort is allowed to be unregistered for this many days 
+    # in this period
+    child_live_slack_days: 31
+
+    # Should we use the address registration of a child on a specific age
+    childhood_home_age: 15
+    
+   # Postal code link to homes will be considered on this target date
+    postcode_target_date: "31/12/2025"
+    # Neighbourhood geo link to homes will be considered on this target date
+    gwb_target_date: "31/12/2025"
+    # Corop geo link to homes will be considered on this target date
+    corop_target_date: "31/12/2025"
+    
+    # Income will be deflated to cpi_base_year euros.
+    cpi_base_year: 2024
+    
+    # Parent income year range
+    parent_income_year_min: 2014
+    parent_income_year_max: 2018
+    
+    # Parent wealth year range
+    parent_wealth_year_min: 2014
+    parent_wealth_year_max: 2018
+    
+    # eduation of students year range
+    education_year_min: 2020
+    education_year_max: 2024
+
+    # age at which we measure health outcomes
+    health_outcome_age: 20
+    # health outcomes year range, one year before last time in 8th grade
+    health_year_min: 2019
+    health_year_max: 2023
+
+    # primary school classroom year range
+    primary_classroom_year_min: 2010
+    primary_classroom_year_max: 2015
+
+    # secondary school data year range
+    secondary_classroom_year_min: 2014
+    secondary_classroom_year_max: 2019
+    
+    # age at which we measure the outcomes
+    outcome_age: 21
+    
+    # ages at which we measure neighborhood composition
+    neighborhood_composition_age_min: 1
+    neighborhood_composition_age_max: 21
+
+    
+  file_locations:
+    # The data folder is the root folder of the cbs microdata tables
+    data_folder: "G:/"
+    # The scratch folder is used to write intermediate output
+    scratch_folder: "scratch/age21_sql"
+
+   # path to the cbs microdata
+    gba_data: "Bevolking/GBAPERSOONTAB/2024/geconverteerde data/GBAPERSOON2024TABV3.db"
+    gbaao_data: "Bevolking/GBAADRESOBJECTBUS/geconverteerde data/GBAADRESOBJECT2024BUSV1.db"
+    kind_data: "Bevolking/KINDOUDERTAB/KINDOUDER2024TABV1.sav"
+    postcode_data: "BouwenWonen/VSLPOSTCODEBUS/VSLPOSTCODEBUSV2025031.sav"
+    vslgwb_data: "BouwenWonen/VSLGWBTAB/geconverteerde data/VSLGWB2025TAB03V1.db"
+    household_data: "Bevolking/GBAHUISHOUDENSBUS/geconverteerde data/GBAHUISHOUDENS2024BUSV1.db"
+
+    # resources
+    cpi_index_data: "resources/Consumentenprijzen__prijsindex_2015_100_14112022_221558.xlsx"
+    migration_data: "K:/Utilities/Code_Listings/SSBreferentiebestanden/LANDAKTUEELREFV13.SAV"
+    corop_data: "K:/Utilities/HULPbestanden/GebiedeninNederland/GIN"
+    opleiding_data: "K:/Utilities/Code_Listings/SSBreferentiebestanden/OPLEIDINGSNRREFV34.SAV"

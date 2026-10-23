@@ -44,6 +44,16 @@ find_latest_db <- function(dir, pattern) {
 }
 
 
+# Full path of a file in the config: relative paths are relative to data_folder (G:/),
+# absolute paths (H:/..., //server/...) are used as they are. Handy for a .db you
+# converted yourself that is not yet moved to its `geconverteerde data` folder.
+cbs_path <- function(loc, key) {
+  p <- loc[[key]]
+  if (is.null(p)) stop("No '", key, "' in file_locations")
+  if (grepl("^([A-Za-z]:|/|\\\\)", p)) p else file.path(loc$data_folder, p)
+}
+
+
 #### VALUE LABELS ####
 
 # The converter stores labels in a long table with one row per (variable, code, label).
@@ -88,7 +98,12 @@ find_latest_db <- function(dir, pattern) {
 #' @param numeric   columns to convert to numeric (the converter may store
 #'                  numbers as TEXT; as.numeric() is a no-op if they are REAL)
 #' @param labels    re-attach value labels from the `value_labels` table
-read_db <- function(path, cols = NULL, filter_in = NULL, numeric = NULL, labels = TRUE) {
+#' @param match     "all": a row must pass every filter in `filter_in` (AND, default);
+#'                  "any": a row must pass at least one of them (OR), e.g.
+#'                  filter(RINPERSOONMa %in% x | RINPERSOONpa %in% x)
+read_db <- function(path, cols = NULL, filter_in = NULL, numeric = NULL, labels = TRUE,
+                    match = c("all", "any")) {
+  match <- match.arg(match)
   t0  <- Sys.time()
   con <- dbConnect(RSQLite::SQLite(), path, flags = RSQLite::SQLITE_RO)
   on.exit(dbDisconnect(con), add = TRUE)
@@ -117,11 +132,16 @@ read_db <- function(path, cols = NULL, filter_in = NULL, numeric = NULL, labels 
 
   sql <- sprintf("SELECT %s FROM %s AS t%s ORDER BY t.rowid",
                  col_sql, q(tab),
-                 if (length(where)) paste0(" WHERE ", paste(where, collapse = " AND ")) else "")
+                 if (length(where)) paste0(" WHERE ", paste(where, collapse = if (match == "all") " AND " else " OR ")) else "")
   dat <- as_tibble(dbGetQuery(con, sql))
 
   for (col in intersect(numeric, names(dat))) dat[[col]] <- as.numeric(dat[[col]])
 
+  if (labels && !"value_labels" %in% dbListTables(con)) {
+    warning("No `value_labels` table in ", basename(path), ": columns come back without value labels, ",
+            "so as_factor() calls may give other results than with read_sav(). ",
+            "See sqlexperiment/convert_sav_to_db.R for the expected format.", call. = FALSE)
+  }
   if (labels && "value_labels" %in% dbListTables(con)) {
     lab <- dbReadTable(con, "value_labels")
     if (nrow(lab) > 0) {
@@ -134,7 +154,40 @@ read_db <- function(path, cols = NULL, filter_in = NULL, numeric = NULL, labels 
   }
 
   if (isTRUE(getOption("sqlexp.verbose"))) {
-    message(sprintf("  read_db %-35s %10s rows  %6.1fs", tab, format(nrow(dat), big.mark = ","),
+    message(sprintf("  read_db  %-35s %10s rows  %6.1fs", tab, format(nrow(dat), big.mark = ","),
+                    as.numeric(Sys.time() - t0, units = "secs")))
+  }
+  dat
+}
+
+
+#' Read a CBS file that may or may not be converted yet.
+#'
+#' The scripts call read_cbs() for every file that has (or will get) a .db version.
+#' What happens depends only on the path in the config:
+#'   - `.db`  -> read_db(): columns and ID filters are applied inside SQLite.
+#'   - other  -> read_sav(col_select = cols), then the same filters in R.
+#' Both give the same rows in the same (file) order, so switching a file from .sav
+#' to .db is a config change only. `numeric` is only used for .db files (in a .sav
+#' the numbers are already numeric).
+read_cbs <- function(path, cols = NULL, filter_in = NULL, numeric = NULL,
+                     match = c("all", "any")) {
+  match <- match.arg(match)
+  if (tolower(tools::file_ext(path)) == "db") {
+    return(read_db(path, cols = cols, filter_in = filter_in, numeric = numeric, match = match))
+  }
+
+  t0  <- Sys.time()
+  dat <- if (is.null(cols)) haven::read_sav(path) else haven::read_sav(path, col_select = tidyselect::all_of(cols))
+  if (length(filter_in) > 0) {
+    keep <- lapply(names(filter_in), function(col) {
+      vals <- unique(as.character(filter_in[[col]]))
+      as.character(haven::zap_labels(dat[[col]])) %in% vals[!is.na(vals)]
+    })
+    dat <- dat[Reduce(if (match == "all") `&` else `|`, keep), , drop = FALSE]
+  }
+  if (isTRUE(getOption("sqlexp.verbose"))) {
+    message(sprintf("  read_sav %-35s %10s rows  %6.1fs", basename(path), format(nrow(dat), big.mark = ","),
                     as.numeric(Sys.time() - t0, units = "secs")))
   }
   dat

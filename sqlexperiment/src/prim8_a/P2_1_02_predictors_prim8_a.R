@@ -7,7 +7,7 @@
 #
 # SQLite version: the files that are available as converted .db (GBAPERSOON,
 # GBAADRESOBJECT, KINDOUDER, GBAHUISHOUDENS, VSLPOSTCODE, VSLGWB, LEVCYCLWOONNIETWOON)
-# are read with read_db() (src/sql_helpers.R): only the rows that are needed leave
+# are read with read_cbs() (src/sql_helpers.R): only the rows that are needed leave
 # the database. All other files are still read with read_sav(), exactly as before.
 # Changes are marked with [SQL].
 #
@@ -47,7 +47,7 @@ cpi_tab <- cpi_tab %>%
 # We only include parents who live continuously in the Netherlands 
 adres_path <- file.path(loc$data_folder, loc$gbaao_data)
 # [SQL] the parent filter below is now also done inside SQLite
-adres_tab  <- read_db(adres_path, 
+adres_tab  <- read_cbs(adres_path, 
                       filter_in = list(RINPERSOON = c(cohort_dat$RINPERSOONpa, cohort_dat$RINPERSOONMa))) %>%
   # select only parents
   filter((RINPERSOON %in% cohort_dat$RINPERSOONpa) | 
@@ -462,7 +462,7 @@ cohort_dat <-
 gba_path <- file.path(loc$data_folder, loc$gba_data)
 gba_dat <-  
   # [SQL] only the parents (gba_dat is only left-joined on the parent ids)
-  read_db(gba_path, cols = c("RINPERSOONS", "RINPERSOON",
+  read_cbs(gba_path, cols = c("RINPERSOONS", "RINPERSOON",
                              "GBAGENERATIE", "GBAHERKOMSTGROEPERING"),
           filter_in = list(RINPERSOON = c(cohort_dat$RINPERSOONpa, cohort_dat$RINPERSOONMa))) %>% 
   mutate(RINPERSOONS  = as_factor(RINPERSOONS,  levels = "values"),
@@ -584,7 +584,7 @@ rm(gba_dat)
 # import household  data
 household_dat <-
   # [SQL] the cohort filter below is now also done inside SQLite
-  read_db(file.path(loc$data_folder, loc$household_data),
+  read_cbs(file.path(loc$data_folder, loc$household_data),
           cols = c("RINPERSOONS", "RINPERSOON", "DATUMAANVANGHH",
                    "DATUMEINDEHH", "TYPHH"),
           filter_in = list(RINPERSOON = cohort_dat$RINPERSOON)) %>%

@@ -1,9 +1,10 @@
 # Kansenkaart data preparation pipeline -- SQLite experiment
 #
-# Compares the output of the .sav pipeline with the SQLite pipeline for prim8_a.
-# Run both variants with sqlexperiment/run_prim8_a_experiment.R first.
+# Compares the output of the .sav pipeline with the SQLite pipeline for one cohort.
+# Run both variants with sqlexperiment/run_experiment.R first.
 #
-# For every scratch file it checks:
+# It compares every .rds file the sav variant wrote to its scratch folder with the
+# file of the same name in the sql scratch folder, and checks:
 #   - number of rows and columns, column names
 #   - row order (same order of RINPERSOON)
 #   - per column: are the values identical? (numbers with a tolerance of 1e-9;
@@ -13,17 +14,28 @@
 #
 # Prints only counts and column names, no microdata, so the output can be exported.
 #
+# Usage: working directory = repository root, set the cohort, run.
+#   or from a terminal:  Rscript sqlexperiment/compare_experiment.R <cohort>
+#
 # (c) ODISSEI Social Data Science team 2026
 
 library(tidyverse)
 library(haven)
 
 # setwd("H:/Opportunity-Preprocessing")   # <- repository root in the RA
-sav_dir <- config::get("file_locations", file = "config/P_2_1_prim8_a.yml")$scratch_folder
-sql_dir <- config::get("file_locations", file = "sqlexperiment/config/P_2_1_prim8_a.yml")$scratch_folder
+cohort <- "prim8_a"
+.args <- commandArgs(trailingOnly = TRUE)
+if (length(.args) >= 1) cohort <- .args[1]
 
-files <- c("01_cohort.rds", "01_sample_size.rds", "class_cohort.rds", "02_predictors.rds",
-           "neighborhood_cohort.rds", "03_outcomes.rds", "03_sample_size.rds", "prim8_a_cohort.rds")
+cfg_name <- list.files("config", paste0("^P_2_[0-9]_", cohort, "\\.yml$"))
+if (length(cfg_name) != 1) stop("No (unique) config file for cohort '", cohort, "' in config/")
+sav_dir <- config::get("file_locations", file = file.path("config", cfg_name))$scratch_folder
+sql_dir <- config::get("file_locations", file = file.path("sqlexperiment/config", cfg_name))$scratch_folder
+
+# all .rds files the sav pipeline wrote (incl. the final cohort file)
+files <- sort(list.files(sav_dir, "\\.rds$"))
+only_sql <- setdiff(list.files(sql_dir, "\\.rds$"), files)
+if (length(files) == 0) stop("No .rds files in ", sav_dir, ": run the sav variant first")
 
 
 # values as comparable plain vectors
@@ -44,15 +56,21 @@ same_values <- function(a, b) {
 }
 
 compare_file <- function(f) {
-  a <- read_rds(file.path(sav_dir, f)) %>% ungroup()
-  b <- read_rds(file.path(sql_dir, f)) %>% ungroup()
+  a <- read_rds(file.path(sav_dir, f))
+  b <- read_rds(file.path(sql_dir, f))
   cat("\n=====", f, "=====\n")
+  if (!is.data.frame(a) || !is.data.frame(b)) {
+    ok <- identical(a, b)
+    cat("  (not a data frame) identical:", ok, "\n")
+    return(invisible(ok))
+  }
+  a <- ungroup(a); b <- ungroup(b)
   cat(sprintf("rows: sav %d | sql %d    cols: sav %d | sql %d\n", nrow(a), nrow(b), ncol(a), ncol(b)))
   if (length(setdiff(names(a), names(b)))) cat("  only in sav:", setdiff(names(a), names(b)), "\n")
   if (length(setdiff(names(b), names(a)))) cat("  only in sql:", setdiff(names(b), names(a)), "\n")
   if (!identical(names(a), names(b)) && setequal(names(a), names(b))) cat("  same columns, different order\n")
 
-  if (nrow(a) != nrow(b)) return(invisible(FALSE))
+  if (nrow(a) != nrow(b)) { cat("  -> DIFFERENCES FOUND (row count)\n"); return(invisible(FALSE)) }
 
   # row order
   if ("RINPERSOON" %in% names(a)) {
@@ -65,7 +83,7 @@ compare_file <- function(f) {
     }
   }
 
-  ok <- TRUE
+  ok <- setequal(names(a), names(b))
   for (col in intersect(names(a), names(b))) {
     n_diff <- sum(!same_values(a[[col]], b[[col]]))
     type_a <- class(a[[col]])[1]; type_b <- class(b[[col]])[1]
@@ -79,14 +97,15 @@ compare_file <- function(f) {
 }
 
 results <- sapply(files, function(f) {
-  if (!file.exists(file.path(sav_dir, f)) || !file.exists(file.path(sql_dir, f))) {
-    cat("\n=====", f, "===== missing in one of the scratch folders\n"); return(NA)
+  if (!file.exists(file.path(sql_dir, f))) {
+    cat("\n=====", f, "===== missing in", sql_dir, "\n"); return(NA)
   }
   compare_file(f)
 })
 
-cat("\n\nSUMMARY (TRUE = identical values)\n")
+cat("\n\nSUMMARY", cohort, "(TRUE = identical values)\n")
 print(results)
+if (length(only_sql)) cat("\nOnly in the sql scratch folder:", only_sql, "\n")
 
 # timing
 t_files <- c(file.path(sav_dir, "timing_sav.csv"), file.path(sql_dir, "timing_sql.csv"))
@@ -94,5 +113,5 @@ if (all(file.exists(t_files))) {
   cat("\nTIMING\n")
   timing <- bind_rows(lapply(t_files, read.csv)) %>%
     pivot_wider(names_from = variant, values_from = c(seconds, max_mem_mb))
-  print(timing)
+  print(as.data.frame(timing))
 }

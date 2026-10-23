@@ -5,7 +5,7 @@
 #
 # SQLite version: the files that are available as converted .db (GBAPERSOON,
 # GBAADRESOBJECT, KINDOUDER, GBAHUISHOUDENS, VSLPOSTCODE, VSLGWB, LEVCYCLWOONNIETWOON)
-# are read with read_db() (src/sql_helpers.R): only the rows that are needed leave
+# are read with read_cbs() (src/sql_helpers.R): only the rows that are needed leave
 # the database. All other files are still read with read_sav(), exactly as before.
 # Changes are marked with [SQL].
 #
@@ -262,7 +262,7 @@ before_neighborhood <- cohort_dat
 # [SQL] only addresses of the cohort children. adres_dat is only used for children
 #       in cohort_dat (which only gets smaller from here on), so it is also reused
 #       for LIVING SPACE below instead of reading the address table a second time.
-adres_dat <- read_db(file.path(loc$data_folder, loc$gbaao_data),
+adres_dat <- read_cbs(file.path(loc$data_folder, loc$gbaao_data),
                      filter_in = list(RINPERSOON = cohort_dat$RINPERSOON)) %>%
   mutate(
     RINPERSOONS = as_factor(RINPERSOONS, levels = "values"),
@@ -340,7 +340,7 @@ home_tab <- rbind (home_tab, home_tab_missing_before)
 # clean the postcode table
 vslpc_path <- file.path(loc$data_folder, loc$postcode_data)
 # [SQL] only the dwellings that occur in adres_dat (home_tab comes from there)
-vslpc_tab  <- read_db(vslpc_path, filter_in = list(RINOBJECTNUMMER = adres_dat$RINOBJECTNUMMER)) %>%
+vslpc_tab  <- read_cbs(vslpc_path, filter_in = list(RINOBJECTNUMMER = adres_dat$RINOBJECTNUMMER)) %>%
   mutate(
     SOORTOBJECTNUMMER = as_factor(SOORTOBJECTNUMMER, levels = "values"),
     DATUMAANVPOSTCODENUMADRES = ymd(DATUMAANVPOSTCODENUMADRES),
@@ -694,7 +694,7 @@ rm(adres_tab)
 
 woon_dat <-
   # [SQL] only the dwellings of the cohort (woon_dat is only joined to those)
-  read_db(file.path(loc$data_folder, loc$woon_data),
+  read_cbs(file.path(loc$data_folder, loc$woon_data),
           cols = c("SOORTOBJECTNUMMER", "RINOBJECTNUMMER", "VBOOPPERVLAKTE",
                    "AANVLEVCYCLWOONNIETWOON", "EINDLEVCYCLWOONNIETWOON"),
           filter_in = list(RINOBJECTNUMMER = cohort_dat$RINOBJECTNUMMER)) %>%

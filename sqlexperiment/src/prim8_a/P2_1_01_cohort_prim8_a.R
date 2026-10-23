@@ -6,7 +6,7 @@
 #   - Adding postal code / region information to the cohort.
 #   - Writing `scratch/01_cohort.rds`.
 #
-# SQLite version: reads the converted .db files via read_db() (src/sql_helpers.R)
+# SQLite version: reads the converted .db files via read_cbs() (src/sql_helpers.R)
 # instead of read_sav(). Only the rows that are needed leave the database; all
 # processing after the read is unchanged. Changes are marked with [SQL].
 #
@@ -49,7 +49,7 @@ gba_cols <- c("RINPERSOONS", "RINPERSOON", "GBAGESLACHT",
 cohort_years <- seq(year(dmy(cfg$child_birth_date_min) - years(2)),
                     year(dmy(cfg$child_birth_date_max) + years(2)))
 gba_dat <-
-  read_db(gba_path, cols = gba_cols,
+  read_cbs(gba_path, cols = gba_cols,
           filter_in = list(GBAGEBOORTEJAAR = cohort_years)) %>%
   prep_gba()
 
@@ -72,7 +72,7 @@ kindouder_path <- file.path(loc$data_folder, loc$kind_data)
 cohort_dat <- inner_join(
   x = cohort_dat, 
   # [SQL] only the children in the cohort (the inner join drops all others anyway)
-  y = read_db(kindouder_path, filter_in = list(RINPERSOON = cohort_dat$RINPERSOON)) %>%
+  y = read_cbs(kindouder_path, filter_in = list(RINPERSOON = cohort_dat$RINPERSOON)) %>%
     select(-(XKOPPELNUMMER)) %>%
     haven::as_factor(only_labelled = TRUE, levels = "values"),
   by = c("RINPERSOONS", "RINPERSOON")
@@ -90,7 +90,7 @@ sample_size <- sample_size %>%
 # [SQL] gba_dat only holds the cohort birth years, so read the parents separately
 #       (same filter as before: RINPERSOON in mothers or fathers)
 gba_dat <-
-  read_db(gba_path, cols = gba_cols,
+  read_cbs(gba_path, cols = gba_cols,
           filter_in = list(RINPERSOON = c(cohort_dat$RINPERSOONMa, cohort_dat$RINPERSOONpa))) %>%
   prep_gba()
 
@@ -129,7 +129,7 @@ rm(parents_age, gba_dat)
 adres_path <- file.path(loc$data_folder, loc$gbaao_data)
 # [SQL] only addresses of the cohort children and their mothers: these are the only
 #       two filters applied to adres_tab below (childhood home, home at birth)
-adres_tab  <- read_db(adres_path,
+adres_tab  <- read_cbs(adres_path,
                       filter_in = list(RINPERSOON = c(cohort_dat$RINPERSOON, cohort_dat$RINPERSOONMa))) %>%
   haven::as_factor(only_labelled = TRUE, levels = "values") %>%
   mutate(
@@ -172,7 +172,7 @@ rm(home_tab, age_tab)
 # clean the postcode table
 vslpc_path <- file.path(loc$data_folder, loc$postcode_data)
 # [SQL] only the dwellings that occur in adres_tab (all homes we link below come from there)
-vslpc_tab  <- read_db(vslpc_path, filter_in = list(RINOBJECTNUMMER = adres_tab$RINOBJECTNUMMER)) %>%
+vslpc_tab  <- read_cbs(vslpc_path, filter_in = list(RINOBJECTNUMMER = adres_tab$RINOBJECTNUMMER)) %>%
   mutate(
     SOORTOBJECTNUMMER = haven::as_factor(SOORTOBJECTNUMMER, levels = "values"),
     DATUMAANVPOSTCODENUMADRES = ymd(DATUMAANVPOSTCODENUMADRES),
@@ -198,7 +198,7 @@ cohort_dat <- inner_join(cohort_dat, vslpc_tab,
 # add region/neighbourhood codes to cohort
 vslgwb_path <- file.path(loc$data_folder, loc$vslgwb_data) 
 # [SQL] only the columns used below, and only the dwellings that occur in adres_tab
-vslgwb_tab  <- read_db(vslgwb_path,
+vslgwb_tab  <- read_cbs(vslgwb_path,
                        cols = c("SOORTOBJECTNUMMER", "RINOBJECTNUMMER",
                                 paste0("gem", year(dmy(cfg$gwb_target_date))),
                                 paste0("wc", year(dmy(cfg$gwb_target_date)))),
