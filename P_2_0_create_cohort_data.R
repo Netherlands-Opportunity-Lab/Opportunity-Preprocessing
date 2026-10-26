@@ -44,8 +44,12 @@ if (cohort == "jgz") {
 } else {
 
   #### CONFIGURATION ####
-  # the config file of the cohort: config/P_2_<version>_<cohort>.yml
-  cfg_file <- list.files("config", paste0("^P_2_[0-9]_", cohort, "\\.yml$"), full.names = TRUE)
+  # the config file of the cohort: config/<cohort>.yml (name in the CBS RA) or
+  # config/P_2_<version>_<cohort>.yml (name with version prefix, outside the RA)
+  cfg_file <- file.path("config", paste0(cohort, ".yml"))
+  if (!file.exists(cfg_file)) {
+    cfg_file <- list.files("config", paste0("^P_2_[0-9]_", cohort, "\\.yml$"), full.names = TRUE)
+  }
   if (length(cfg_file) != 1) stop("No (unique) config file for cohort '", cohort, "' in config/")
 
   # load the configuration

@@ -345,7 +345,7 @@ To create a sample dataset, set `cohort` in `P_2_0_create_cohort_data.R` to one 
 
 -   `age16`, `age21` or `age35`
 
-The script uses the matching configuration `config/P_2_<version>_<cohort>.yml`; the sample dataset will be written to the scratch folder.
+The script uses the matching configuration, `config/<cohort>.yml` (as named in the CBS RA) or `config/P_2_<version>_<cohort>.yml` (with the version prefix, as in this repository); the sample dataset will be written to the scratch folder.
 
 -   `jgz`: the youth health care (JGZ) preprocessing, with its own steps (00-03) and configuration (`config/jgz.yml`); see `src/jgz/README.md`.
 
