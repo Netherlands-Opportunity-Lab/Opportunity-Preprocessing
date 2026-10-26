@@ -337,21 +337,17 @@ Here the code of this repository is described. There are 39 files in total: conf
 
 ### **Sample Creation**
 
-To create a sample dataset use `create_sample_data.R`, change the desired input configuration to one of the following:
+To create a sample dataset, set `cohort` in `P_2_0_create_cohort_data.R` to one of the following and run the script from the repository root:
 
--   `config/newborns_a_perinatal.yml` or `config/newborns_b_perinatal.yml`
+-   `newborns_a_perinatal`, `newborns_b_perinatal`, `newborns_a_mortality` or `newborns_b_mortality`
 
--   `config/newborns_a_mortality.yml` or `config/newborns_b_mortality.yml`
+-   `prim8_a` or `prim8_b`
 
--   `config/prim8a.yml` or `config/prim8b.yml`
+-   `age16`, `age21` or `age35`
 
--   `config/age16.yml`
+The script uses the matching configuration `config/P_2_<version>_<cohort>.yml`; the sample dataset will be written to the scratch folder.
 
--   `config/age21.yml`
-
--   `config/age35.yml`,
-
-    and run the `create_cohort_data.R` script. The sample dataset will be written to the scratch folder.
+-   `jgz`: the youth health care (JGZ) preprocessing, with its own steps (00-03) and configuration (`config/jgz.yml`); see `src/jgz/README.md`.
 
 ### **Flowchart Sample Creation**
 

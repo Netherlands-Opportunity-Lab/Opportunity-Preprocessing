@@ -9,7 +9,11 @@ export bundle) are in
 [Opportunity-Analysis-Map/JGZ](https://github.com/Netherlands-Opportunity-Lab/Opportunity-Analysis-Map),
 next to the map, regression, descriptives and webmapper scripts.
 
-All paths and settings are in `config/jgz.yml`. Run every script from the
+All paths and settings are in `config/jgz.yml`. Run it like the other
+cohorts, with `cohort <- "jgz"` in `P_2_0_create_cohort_data.R` (repository
+root). That runs steps 00-03 in order; set `jgz_steps` there to rerun only
+some of them (each step reads the previous step's output from disk, e.g.
+`jgz_steps <- c("02", "03")`). Or source the scripts yourself, from the
 repository root, in order:
 
 ```r
