@@ -27,10 +27,16 @@ cohort <- "prim8_a"
 .args <- commandArgs(trailingOnly = TRUE)
 if (length(.args) >= 1) cohort <- .args[1]
 
-cfg_name <- list.files("config", paste0("^P_2_[0-9]_", cohort, "\\.yml$"))
-if (length(cfg_name) != 1) stop("No (unique) config file for cohort '", cohort, "' in config/")
-sav_dir <- config::get("file_locations", file = file.path("config", cfg_name))$scratch_folder
-sql_dir <- config::get("file_locations", file = file.path("sqlexperiment/config", cfg_name))$scratch_folder
+# the config of the cohort in `dir`: <cohort>.yml (name in the CBS RA) or
+# P_2_<version>_<cohort>.yml (name with version prefix, outside the RA)
+find_cfg <- function(dir, cohort) {
+  f <- file.path(dir, paste0(cohort, ".yml"))
+  if (!file.exists(f)) f <- list.files(dir, paste0("^P_2_[0-9]_", cohort, "\\.yml$"), full.names = TRUE)
+  if (length(f) != 1) stop("No (unique) config file for cohort '", cohort, "' in ", dir, "/")
+  f
+}
+sav_dir <- config::get("file_locations", file = find_cfg("config", cohort))$scratch_folder
+sql_dir <- config::get("file_locations", file = find_cfg("sqlexperiment/config", cohort))$scratch_folder
 
 # all .rds files the sav pipeline wrote (incl. the final cohort file)
 files <- sort(list.files(sav_dir, "\\.rds$"))

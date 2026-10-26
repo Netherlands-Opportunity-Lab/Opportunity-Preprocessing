@@ -7,7 +7,7 @@ microdata instead of `.sav`, without changing the results.
 
 | file | what it does |
 |---|---|
-| `config/P_2_*_<cohort>.yml` | same settings as `config/P_2_*_<cohort>.yml`; files that have a `.db` point to it, output goes to `scratch/<cohort>_sql` |
+| `config/P_2_*_<cohort>.yml` | same settings as `config/P_2_*_<cohort>.yml`; files that have a `.db` point to it, output goes to `scratch/<cohort>_sql`. Inside the CBS RA the configs and scripts have no `P_2_*` prefix (`config/<cohort>.yml`, `01_...R`); the runner and the compare script find both |
 | `src/sql_helpers.R` | `read_cbs()`, `read_db()`, `cbs_path()`, `find_latest_db()` |
 | `src/<cohort>/*.R` | the four scripts per cohort; only the reads of converted files changed (marked `[SQL]`) |
 | `run_experiment.R` | runs the `sav` or `sql` variant of one cohort and logs time and memory per script |
