@@ -8,9 +8,8 @@
 
 # clean workspace
 rm(list=ls())
-setwd("H:/IGM project/kansenkaart_preprocessing")
+setwd("H:/Opportunity-Preprocessing")   # repository root in the RA
 options(scipen=999)
-excel_path <- 'H:/IGM project/Excel/output/'
 
 
 
@@ -55,6 +54,10 @@ if (cohort == "jgz") {
 
   # create the scratch folder
   if (!dir.exists(loc$scratch_folder)) dir.create(loc$scratch_folder)
+
+  # diagnostics workbooks (age35: parents_zeros_negatives_missings.xlsx) go
+  # to the scratch folder of the cohort, as in sqlexperiment/run_experiment.R
+  excel_path <- loc$scratch_folder
 
 
   #### RUN ####
