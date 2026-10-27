@@ -49,6 +49,17 @@ no `join_by()`, `if_any()` or `relationship =`.
   do-file); the gebl2-only country corrections are applied to gebl1 too; and
   string "fill empty" variables are filled with their real value
   (`replicate_stata_string_fill: TRUE` reproduces Stata exactly).
+- **Children seen by more than one organisation.** 00 cleans per
+  organisation; after linking to RIN, records of one child at the same age
+  (`leeftijd`) from different organisations get `org` = missing, and differing
+  location variables and `gewicht` too (other variables: maximum, as Coen).
+  At different ages each row keeps its own `org`. 01 and 02 do not use `org`.
+  In 03 the organisation is where the child lives (`org_catchment`); observed
+  = a contact by *any* organisation (`catch_observed_same_org: FALSE`, Coen),
+  and `org` is that of the last contact. Open: how often this happens (row
+  `org` in 00's switch tables). Note: the map tables (Opportunity-Analysis-Map)
+  pool all organisations by GBA postcode, so their export is not limited to
+  `export_orgs`.
 - **`geslacht` coding (02).** 1 = boy, 2 = girl (checked in the data).
 - **BMI units (02).** Weight in grams and length in mm (as in the BDS and in
   Coen's code); 02 prints the median BMI per visit and warns if implausible.
