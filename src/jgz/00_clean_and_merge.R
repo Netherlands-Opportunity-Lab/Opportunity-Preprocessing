@@ -21,7 +21,7 @@
 #   2. Health file: country names, upper case, destring, exact duplicates
 #   3. Within contact moment (org x child ID x domain x age): detect switches,
 #      write the FRANKENSTEIN file, treat variables by category, collapse
-#   4. Merge with the ID file (Icare-visus via Icare-overgewicht IDs)
+#   4. Merge with the ID file (Org4-visus via Org4-overgewicht IDs)
 #   5. Within RIN x domain x age: switches, remove conflicts, collapse
 #   6. Across domains (RIN x age): switches, remove conflicts, final collapse
 #
@@ -179,7 +179,7 @@ id_combined <- id_combined[!missing_rin, ]
 check_n(nrow(id_combined), 320669, "ID file rows after dropping missing RIN")
 
 # --- Rows without Onderwerp ----------------------------------------------------
-# All come from Icare, and all are duplicates of Icare rows that do have an
+# All come from Org4 (code 12), and all are duplicates of Org4 rows that do have an
 # Onderwerp (checked in the do-file), so they can be dropped.
 no_onderwerp <- is.na(id_combined$Onderwerp)
 print(table(org = id_combined$org[no_onderwerp]))
@@ -215,9 +215,9 @@ print(descriptive)
 write_matrix(descriptive, file.path(loc$descriptives_folder, "IDfile_descriptives.xlsx"),
              "descriptive")
 
-# Icare-overgewicht IDs are used to link Icare-visus (step 4)
-icare_overgewicht_ids <- id_combined %>%
-  filter(org == ORG_CODES[["Icare"]], databestand == DOMAIN_CODES[["overgewicht"]])
+# Org4-overgewicht IDs are used to link Org4-visus (step 4)
+org4_overgewicht_ids <- id_combined %>%
+  filter(org == ORG_CODES[["Org4"]], databestand == DOMAIN_CODES[["overgewicht"]])
 
 
 # =============================================================================
@@ -442,20 +442,20 @@ merge_ids <- function(master, ids, by) {
   out
 }
 
-is_icare_visus <- health_clean$org == ORG_CODES[["Icare"]] &
+is_org4_visus <- health_clean$org == ORG_CODES[["Org4"]] &
   health_clean$databestand == DOMAIN_CODES[["visus"]]
 
-# Merge 1: on organisation, child ID and domain (everything except Icare-visus)
-merge1 <- merge_ids(health_clean[!is_icare_visus, ], id_combined,
+# Merge 1: on organisation, child ID and domain (everything except Org4-visus)
+merge1 <- merge_ids(health_clean[!is_org4_visus, ], id_combined,
                     by = c("org", "KindNummer_crypt", "databestand"))
-# Merge 3: Icare-visus via the child IDs of Icare-overgewicht (the visus
+# Merge 3: Org4-visus via the child IDs of Org4-overgewicht (the visus
 # records cannot be linked directly; numbering "3" kept from the do-file)
-merge3 <- merge_ids(health_clean[is_icare_visus, ], icare_overgewicht_ids,
+merge3 <- merge_ids(health_clean[is_org4_visus, ], org4_overgewicht_ids,
                     by = c("org", "KindNummer_crypt"))
 
 merges <- rbind(
   `All three`   = c(sum(!merge1$.matched), sum(merge1$.matched)),
-  `Icare-visus` = c(sum(!merge3$.matched), sum(merge3$.matched))
+  `Org4-visus` = c(sum(!merge3$.matched), sum(merge3$.matched))
 )
 merges <- rbind(merges, Total = colSums(merges))
 colnames(merges) <- c("Health file only (not matched)", "Matched")

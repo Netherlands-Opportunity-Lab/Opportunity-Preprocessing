@@ -62,7 +62,7 @@ default:
       org: 10
       gemeente: ["Apeldoorn"]
     # Corrections to the PC4 file (Coen: Verian's 8080 is 8180; 8080 is
-    # otherwise listed for both Verian and Icare)
+    # otherwise listed for both Verian and Org4)
     catch_pc4_corrections:
       - {org: 10, from: 8080, to: 8180}
     # "Observed" at a contact moment = at least one row in the JGZ panel (one

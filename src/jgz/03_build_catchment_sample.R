@@ -174,7 +174,7 @@ pc4_org <- read.csv(loc$catch_pc4_org_file, colClasses = "character") %>%
     cover_end   = month_idx(ymd_date(ifelse(einde %in% c(".", ""), "29991231", einde)))
   )
 # Corrections from Coen's SAMPLE SELECTION do-file: PC4 8080 is listed for both
-# Verian and Icare; the Verian row is 8180 (Heerde).
+# Verian and Org4; the Verian row is 8180 (Heerde).
 for (fix in cfg$catch_pc4_corrections) {
   hit <- pc4_org$org_pc4_area == fix$org & pc4_org$postcode_4 == fix$from
   pc4_org$postcode_4[hit] <- as.integer(fix$to)

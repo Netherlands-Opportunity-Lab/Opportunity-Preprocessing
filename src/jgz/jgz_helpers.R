@@ -30,7 +30,7 @@ ensure_dir <- function(path) {
 }
 
 # Organisation codes used in the JGZ files (bestand 1-4 <-> org 6/7/10/12)
-ORG_CODES  <- c(LimburgNoord = 6, ZONL = 7, Verian = 10, Icare = 12)
+ORG_CODES  <- c(LimburgNoord = 6, ZONL = 7, Verian = 10, Org4 = 12)   # 4th organisation: keep anonymous in public files
 # Health domains (`databestand` in the health file)
 DOMAIN_CODES <- c(overgewicht = 1, visus = 2, psychosociaal = 3, `spraak-taal` = 4)
 
