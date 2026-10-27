@@ -116,4 +116,4 @@ no `join_by()`, `if_any()` or `relationship =`.
 - **PC4 file.** `resources/jgz_pc4gebieden.csv` is the copy from
   `Opportunity-Analysis-Map/JGZ/resources`; the copy in "Background info
   preprocessing JGZ" on SharePoint has broken quoting. PC4 8080 is listed for
-  Verian and Org4; 03 applies Coen's correction (Verian 8080 -> 8180).
+  Verian and org12; 03 applies Coen's correction (Verian 8080 -> 8180).
