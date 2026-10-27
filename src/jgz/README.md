@@ -95,6 +95,16 @@ no `join_by()`, `if_any()` or `relationship =`.
   inside RA (children per `org_catchment`, `d_obs_cat` distribution) and check
   the cohort windows printed by 03. The flow table and cohort shares contain
   counts below 10: not for export.
+- **Denominator of the coverage (bereik), 03.** All children in GBA who
+  (1) live continuously in the PC4 catchment area of *one* organisation from
+  month 22 through month 53 of age (calendar months since the birth month,
+  about 1y10m-4y5m; not 18 months-4 years), with gaps between address spells
+  of at most one month and the area counting until its `einde`; and (2) are
+  born within that organisation's cohort window ([C9]). Whether the JGZ saw
+  them plays no role in the denominator; that is the numerator (`d_obs_cat`).
+  Verian's Apeldoorn is only left out when computing the cohort windows; the
+  regression do-file drops it. Windows and rules in `config/jgz.yml`
+  (`catch_*`).
 - **Coverage per postcode area.** The earlier `catchment_area_calculations.R`
   (2019: share of never-moved children born 2010-2014 found in the JGZ ID
   file, per PC2/PC3) is removed: the official PC4 catchment file and 03 replace
