@@ -22,6 +22,7 @@ source("src/jgz/00_clean_and_merge.R")
 source("src/jgz/01_add_gba_postcode.R")
 source("src/jgz/02_contact_moments.R")
 source("src/jgz/03_build_catchment_sample.R")
+source("src/jgz/04_coverage_per_pc4.R")   # optional: check of the catchment areas
 ```
 
 The code is written for the CBS RA versions (R 3.6.2, dplyr 1.0.2): no `|>`,
@@ -35,6 +36,7 @@ no `join_by()`, `if_any()` or `relationship =`.
 | `01_add_gba_postcode.R` | panel (00), GBAADRESOBJECTBUS, VSLPOSTCODEBUS | `jgz_gba_postcode_data.rds` | Adds the GBA address and its PC4 on the date of each contact moment |
 | `02_contact_moments.R` | output of 01 | `cm_<visit>.rds` (15 files) | Assigns each row to a contact moment (fixed age windows) and adds BMI, sex, PC3/PC4 and the target age |
 | `03_build_catchment_sample.R` | panel (00), GBA, KINDOUDER, income, education and health-cost files, `resources/jgz_pc4gebieden.csv` | `Data_CatchmentArea_3pooled_withvariables_R.dta` | Coen's catchment-area sample for the bereik analyses: children living in one organisation's area from 22 to 53 months, observed or not at 2y/3y/3y9m (`d_obs_cat`), with child and family characteristics. Variable names as in Coen's file, so the bereik regression do-file runs on it |
+| `04_coverage_per_pc4.R` | panel (00), GBA, GBAADRESOBJECTBUS, VSLPOSTCODEBUS, `resources/jgz_pc4gebieden.csv` | `coverage_per_pc4.xlsx` | Check of the catchment areas (Bastian, 27-10-2026): coverage per PC4 x contact moment for every PC4 in the JGZ data, the PC4s *not* in the PC4 file with coverage above 20%, and those per calendar year. Internal only (small counts) |
 | `jgz_helpers.R` | – | – | Config loading and shared helpers (sourced by all scripts) |
 
 ## Decisions and open points
@@ -108,8 +110,21 @@ no `join_by()`, `if_any()` or `relationship =`.
 - **Coverage per postcode area.** The earlier `catchment_area_calculations.R`
   (2019: share of never-moved children born 2010-2014 found in the JGZ ID
   file, per PC2/PC3) is removed: the official PC4 catchment file and 03 replace
-  it. Coverage per area can be computed from 03's output (`d_observed_*` by
-  `postcode_4` or `org_catchment`).
+  it. Coverage *within* the catchment areas comes from 03's output
+  (`d_observed_*` by `postcode_4` or `org_catchment`).
+- **Check of the catchment areas (04) -- agreed 27 Oct 2026.** Is Coen's PC4
+  list complete? 04 computes the coverage for every PC4 where the JGZ saw at
+  least one child: denominator = all children in GBA (born in the 03 range)
+  whose address in the month of the nominal age (24 / 36 / 45 months,
+  `cov_reference_months`) is in that PC4, in a calendar year with JGZ data;
+  numerator = those with a JGZ panel row in the contact-moment window (any
+  organisation, as 03). No continuity or cohort rule, unlike 03. It lists the
+  PC4s not in the PC4 file with coverage above 20% (`cov_flag_min_coverage`,
+  with at least `cov_flag_min_children` children) and shows them per calendar
+  year, because catchment areas can change over time. Whether to add them is
+  decided with Bastian. Note: from 4 years on (school groups) children are
+  seen via their school, so a PC4 can have data because children go to school
+  in the area; 04 only looks at 2y, 3y and 3y9m.
 - **CBS file versions -- decided 23 Oct 2026.** GBAPERSOONTAB,
   GBAADRESOBJECTBUS, VSLPOSTCODEBUS and KINDOUDERTAB are the same versions as
   in prim8_a/prim8_b (2024/2024/2026031/2025; before: 2023/2023/2025031/2023),

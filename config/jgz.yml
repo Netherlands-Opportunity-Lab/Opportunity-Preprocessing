@@ -87,6 +87,24 @@ default:
     catch_mental_care_cols: [ZVWKEERSTELIJNSPSYCHO, ZVWKGGZ, ZVWKGENBASGGZ, ZVWKSPECGGZ,
                              NOPZVWKGGZMV, NOPZVWKGGZZVINST, NOPZVWKGGZZVZELF, NOPZVWKGGZOVERIG]
 
+    # --- 04_coverage_per_pc4.R ---------------------------------------------------
+    # Coverage (bereik) per PC4 in the JGZ data, to check the catchment areas
+    # (Bastian, 27-10-2026). Uses catch_birth_date_min/max, catch_cm_windows and
+    # catch_pc4_corrections above.
+    # Age in months at which the child's address (PC4) is taken, per contact
+    # moment (the nominal age of the visit)
+    cov_reference_months:
+      2y:   24
+      3y:   36
+      3y9m: 45
+    # Calendar years (of that month) included: "data" = first to last year with
+    # a contact in the JGZ panel; or a range, e.g. [2010, 2018]
+    cov_years: "data"
+    # A PC4 that is not in the PC4 file is listed when its coverage is above this
+    # share at one or more contact moments, with at least this many children
+    cov_flag_min_coverage: 0.20
+    cov_flag_min_children: 10
+
   file_locations:
     # --- raw JGZ files (00) --------------------------------------------------
     id_file:      "L:/8151mcuniekCBKV2.SAV"
@@ -109,6 +127,8 @@ default:
     # 03: Stata file with the variable names of Coen's dataset (read by the
     # bereik regression do-file), plus an .rds copy and a flow table
     catch_sample_file: "H:/JGZ-Pilot-Data/Data_CatchmentArea_3pooled_withvariables_R.dta"
+    # 04: coverage per PC4 x contact moment (internal: small counts, not for export)
+    coverage_file: "H:/JGZ-Pilot-Data/coverage_per_pc4.xlsx"
 
     # --- CBS microdata (01, 03) -------------------------------------------------
     # Root of the CBS microdata; yearly files (INPA, IPI, INHA, HOOGSTEOPL,

@@ -27,6 +27,8 @@ if (cohort == "jgz") {
   #   01 GBA address and postcode at each contact moment
   #   02 contact moments (cm_<visit>.rds)
   #   03 catchment-area sample for the bereik analyses
+  #   04 (optional, not in the default steps) coverage per PC4, to check the
+  #      catchment areas: add "04" to jgz_steps to run it
   # All paths and settings are in config/jgz.yml, read by src/jgz/jgz_helpers.R;
   # see src/jgz/README.md. Each step reads the output of the previous one from
   # disk, so a subset can be rerun, e.g. jgz_steps <- c("02", "03").
