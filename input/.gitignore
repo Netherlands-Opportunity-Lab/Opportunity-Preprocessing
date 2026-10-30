@@ -1,0 +1,4 @@
+# Local input data only (e.g. synthetic CBS-like files for testing outside the RA:
+# point data_folder in a config here). Never commit data.
+*
+!.gitignore

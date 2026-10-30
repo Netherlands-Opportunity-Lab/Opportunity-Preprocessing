@@ -1,0 +1,3 @@
+# Intermediate files per cohort and step (rebuilt by the pipeline). Never commit data.
+*
+!.gitignore

@@ -4,11 +4,11 @@
 #   - Selecting the cohort based on filtering criteria. 
 #   - Adding parent information to the cohort.
 #   - Adding postal code / region information to the cohort.
-#   - Writing `scratch/01_cohort.rds`.
+#   - Writing `temp/<cohort>/01_cohort.rds`.
 #
 # SQLite version: the files that are available as converted .db (GBAPERSOON,
 # GBAADRESOBJECT, KINDOUDER, GBAHUISHOUDENS, VSLPOSTCODE, VSLGWB, LEVCYCLWOONNIETWOON,
-# SECMBUS) are read with read_cbs() (src/sql_helpers.R): only the rows
+# SECMBUS) are read with read_cbs() (src/lib/sql_helpers.R): only the rows
 # that are needed leave the database. If the config still points to a .sav, read_cbs()
 # reads it with read_sav() and applies the same filter in R. All other files are read
 # with read_sav(), exactly as before. Changes are marked with [SQL].
@@ -55,7 +55,7 @@ cohort_dat <-
 sample_size <- tibble(n_0_birth_cohort = nrow(cohort_dat))
 
 # SAVE STARTING COHORT
-write_rds(cohort_dat, file.path(loc$scratch_folder, "00_start_cohort.rds"))
+write_rds(cohort_dat, file.path(loc$temp_folder, "00_start_cohort.rds"))
 
 
 
@@ -78,7 +78,7 @@ cohort_dat_no_parents <-
   filter(is.na(RINPERSOONSMa) & is.na(RINPERSOONSpa))
 
 # SAVE STARTING COHORT
-write_rds(cohort_dat_no_parents, file.path(loc$scratch_folder, "00_cohort_no_parents.rds"))
+write_rds(cohort_dat_no_parents, file.path(loc$temp_folder, "00_cohort_no_parents.rds"))
 rm(cohort_dat_no_parents)
 
 
@@ -237,8 +237,8 @@ cohort_dat <-
 # record sample size
 sample_size <- sample_size %>% mutate(n_2_region_link = nrow(cohort_dat))
 
-#### WRITE OUTPUT TO SCRATCH ####
-write_rds(cohort_dat, file.path(loc$scratch_folder, "01_cohort.rds"))
+#### WRITE OUTPUT TO TEMP ####
+write_rds(cohort_dat, file.path(loc$temp_folder, "01_cohort.rds"))
 
-write_rds(sample_size, file.path(loc$scratch_folder, "01_sample_size.rds"))
+write_rds(sample_size, file.path(loc$temp_folder, "01_sample_size.rds"))
 

@@ -29,6 +29,20 @@ ensure_dir <- function(path) {
   invisible(path)
 }
 
+# Stop unless `keys` identify the rows of `dat` (present, non-missing, unique).
+# Same check as check_keys() in src/lib/P_2_1_checks.R; repeated here because
+# the JGZ scripts can also be sourced on their own.
+check_keys_jgz <- function(dat, keys, name) {
+  key_dat <- as.data.frame(dat)[, keys, drop = FALSE]
+  n_missing <- sum(!stats::complete.cases(key_dat))
+  n_duplicate <- sum(duplicated(key_dat))
+  if (n_missing > 0 || n_duplicate > 0) {
+    stop(sprintf("%s: key (%s) is not valid: %d row(s) with a missing key value, %d duplicate key(s)",
+                 name, paste(keys, collapse = ", "), n_missing, n_duplicate), call. = FALSE)
+  }
+  invisible(dat)
+}
+
 # Organisation codes used in the JGZ files (bestand 1-4 <-> org 6/7/10/12)
 ORG_CODES  <- c(LimburgNoord = 6, ZONL = 7, Verian = 10, org12 = 12)   # 4th organisation: never name it in public files
 # Health domains (`databestand` in the health file)
@@ -68,7 +82,7 @@ month_idx <- function(d) as.integer(format(d, "%Y")) * 12L + as.integer(format(d
 
 # The large CBS files are read from their SQLite versions (.db, in the
 # "geconverteerde data" folder next to the catalog file), as in
-# the other cohorts (src/sql_helpers.R): only the rows needed (filtered on IDs inside
+# the other cohorts (src/lib/sql_helpers.R): only the rows needed (filtered on IDs inside
 # SQLite) and columns needed come back to R, instead of reading the whole
 # .sav. Point a path in the config to the .sav instead to fall back to
 # read_sav() (same result, but the whole file is read on every call).
@@ -94,7 +108,7 @@ read_cbs <- function(file, cols = NULL, filter_in = NULL) {
   dat
 }
 
-# read_db(): adapted from src/sql_helpers.R (ODISSEI Social Data
+# read_db(): adapted from src/lib/sql_helpers.R (ODISSEI Social Data
 # Science team 2026). Opens the .db read-only; ID filters go into TEMP tables
 # and are applied inside SQLite; rows come back in file order (ORDER BY rowid)
 # and value labels from the `value_labels` table are re-attached, so the result
@@ -164,7 +178,7 @@ read_db <- function(path, cols = NULL, filter_in = NULL) {
 }
 
 # Column names of the `value_labels` table (variable, value, label), detected
-# as in src/sql_helpers.R; set options(sqlexp.label_cols = c(...)) if that fails.
+# as in src/lib/sql_helpers.R; set options(sqlexp.label_cols = c(...)) if that fails.
 .label_cols <- function(lab) {
   opt <- getOption("sqlexp.label_cols")
   if (!is.null(opt)) return(setNames(opt, c("var", "value", "label")))

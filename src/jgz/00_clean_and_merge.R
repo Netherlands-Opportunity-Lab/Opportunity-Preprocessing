@@ -210,6 +210,12 @@ is_dup <- duplicated(dup_key) | duplicated(dup_key, fromLast = TRUE)
 id_combined <- id_combined[!is_dup, ]
 check_n(sum(is_dup), 12, "ambiguous ID duplicates dropped")
 
+# Save the cleaned ID file (child ID -> RIN) as its own table, so later steps
+# can be redone from the measurement-level data without rerunning this cleaning.
+check_keys_jgz(id_combined, c("KindNummer_crypt", "bestand", "Onderwerp"), "cleaned ID file")
+ensure_dir(dirname(loc$id_link_file))
+saveRDS(id_combined, loc$id_link_file)
+
 descriptive <- rbind(descriptive, n_by_org_domain(id_combined))
 print(descriptive)
 write_matrix(descriptive, file.path(loc$descriptives_folder, "IDfile_descriptives.xlsx"),
@@ -412,6 +418,17 @@ for (v in intersect(cat_remove, names(health_clean))) {
   if (is.character(x)) x[conflict] <- REMOVED else x[conflict] <- NA
   health_clean[[v]] <- x
 }
+
+# --- Save the cleaned measurements, before any collapse ---------------------------
+# One row per record of the health file (key: measurement_id). The collapse
+# below, the RIN merge and the final collapse to child x age all build on this
+# table, so rules such as which measurement to keep, or what to do with children
+# seen by more than one organisation, can be revisited from here.
+health_clean$measurement_id <- seq_len(nrow(health_clean))
+check_keys_jgz(health_clean, "measurement_id", "cleaned measurements")
+ensure_dir(dirname(loc$measurements_file))
+saveRDS(health_clean, loc$measurements_file)
+health_clean$measurement_id <- NULL
 
 # --- Collapse to one row per contact moment ----------------------------------------------
 # The variables that were turned into dummies are dropped first (do-file line

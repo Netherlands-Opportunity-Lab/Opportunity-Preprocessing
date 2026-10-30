@@ -5,7 +5,7 @@
 #NOTE: outcomes using hoogsteopltab cannot be created yet
 # SQLite version: the files that are available as converted .db (GBAPERSOON,
 # GBAADRESOBJECT, KINDOUDER, GBAHUISHOUDENS, VSLPOSTCODE, VSLGWB, LEVCYCLWOONNIETWOON,
-# SECMBUS) are read with read_cbs() (src/sql_helpers.R): only the rows
+# SECMBUS) are read with read_cbs() (src/lib/sql_helpers.R): only the rows
 # that are needed leave the database. If the config still points to a .sav, read_cbs()
 # reads it with read_sav() and applies the same filter in R. All other files are read
 # with read_sav(), exactly as before. Changes are marked with [SQL].
@@ -23,9 +23,9 @@ library(haven)
 
 #### CONFIGURATION ####
 # load main cohort dataset
-cohort_dat <- read_rds(file.path(loc$scratch_folder, "02_predictors.rds"))
+cohort_dat <- read_rds(file.path(loc$temp_folder, "02_predictors.rds"))
 
-sample_size <- read_rds(file.path(loc$scratch_folder, "02_sample_size.rds"))
+sample_size <- read_rds(file.path(loc$temp_folder, "02_sample_size.rds"))
 
 # add year at which the child is a specific age to the cohort
 cohort_dat <- 
@@ -349,7 +349,7 @@ rm(gba_dat, kindouder_dat, kindvader_dat, kindmoeder_dat)
 
 #### PRIMARY SCHOOL CLASS COMPOSITION ####
  # load class cohort data
- class_cohort_dat <- read_rds(file.path(loc$scratch_folder, "class_cohort.rds"))
+ class_cohort_dat <- read_rds(file.path(loc$temp_folder, "class_cohort.rds"))
  
  # combine the main sample and class sample
  class_cohort_dat <- bind_rows(
@@ -478,7 +478,7 @@ rm(gba_dat, kindouder_dat, kindvader_dat, kindmoeder_dat)
 
 #### SECONDARY SCHOOL CLASS COMPOSITION ####
 #load class cohort data
-class_cohort_dat <- read_rds(file.path(loc$scratch_folder, "class_cohort.rds"))
+class_cohort_dat <- read_rds(file.path(loc$temp_folder, "class_cohort.rds"))
 
 # combine the main sample and class sample
 class_cohort_dat <- bind_rows(
@@ -693,7 +693,7 @@ cohort_dat <- cohort_dat %>%
 
 
 #### NEIGHBORHOOD COMPOSITION ####
-neighborhood_cohort_dat <- read_rds(file.path(loc$scratch_folder, "neighborhood_cohort.rds"))
+neighborhood_cohort_dat <- read_rds(file.path(loc$temp_folder, "neighborhood_cohort.rds"))
 
 neighborhood_cohort_dat <- neighborhood_cohort_dat %>%
   mutate(below_p25 = if_else(income_parents_perc < 0.25, 1, 0),
@@ -792,9 +792,9 @@ sample_size <- sample_size %>%
   mutate(n_6_child_outcomes = nrow(cohort_dat))
 
 
-#### WRITE OUTPUT TO SCRATCH ####
-write_rds(cohort_dat, file.path(loc$scratch_folder, "03_outcomes.rds"))
+#### WRITE OUTPUT TO TEMP ####
+write_rds(cohort_dat, file.path(loc$temp_folder, "03_outcomes.rds"))
 
-#write sample size reduction table to scratch
-sample_size <- sample_size %>% mutate(cohort_name = cohort)
-write_rds(sample_size, file.path(loc$scratch_folder, "03_sample_size.rds"))
+#write sample size reduction table to temp
+sample_size <- sample_size %>% mutate(cohort_name = cfg$cohort_name)
+write_rds(sample_size, file.path(loc$temp_folder, "03_sample_size.rds"))

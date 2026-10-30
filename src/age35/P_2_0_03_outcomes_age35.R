@@ -5,11 +5,11 @@
 #   - Adding education outcomes to the cohort.
 #   - Adding health outcomes to the cohort.
 #   - Adding housing outcomes to the cohort.
-#   - Writing `scratch/03_outcomes.rds`.
+#   - Writing `temp/<cohort>/03_outcomes.rds`.
 #
 # SQLite version: the files that are available as converted .db (GBAPERSOON,
 # GBAADRESOBJECT, KINDOUDER, GBAHUISHOUDENS, VSLPOSTCODE, VSLGWB, LEVCYCLWOONNIETWOON,
-# SECMBUS) are read with read_cbs() (src/sql_helpers.R): only the rows
+# SECMBUS) are read with read_cbs() (src/lib/sql_helpers.R): only the rows
 # that are needed leave the database. If the config still points to a .sav, read_cbs()
 # reads it with read_sav() and applies the same filter in R. All other files are read
 # with read_sav(), exactly as before. Changes are marked with [SQL].
@@ -28,17 +28,17 @@ library(readxl)
 #### CONFIGURATION ####
 
 # load main cohort dataset
-cohort_dat <- read_rds(file.path(loc$scratch_folder, "02_predictors.rds")) %>%
+cohort_dat <- read_rds(file.path(loc$temp_folder, "02_predictors.rds")) %>%
 # create variable that reflects the year the child turned a specific age 
   mutate(year = year(birthdate %m+% years(cfg$outcome_age))) %>%
   ungroup()
 
 
-sample_size <- read_rds(file.path(loc$scratch_folder, "02_sample_size.rds"))
+sample_size <- read_rds(file.path(loc$temp_folder, "02_sample_size.rds"))
 
 
 # load function for recording number of missings, negatives, not merged
-source("src/P_2_0_function_kansenkaart_preprocessing.R")
+source_versioned("src/lib", "function_kansenkaart_preprocessing")
 
 
 # create a table with incomes at the cpi_base_year level
@@ -1642,12 +1642,12 @@ sample_size <- sample_size %>%
   mutate(n_6_child_outcomes = nrow(cohort_dat))
 
 
-#### WRITE OUTPUT TO SCRATCH ####
-write_rds(cohort_dat, file.path(loc$scratch_folder, "03_outcomes.rds"))
+#### WRITE OUTPUT TO TEMP ####
+write_rds(cohort_dat, file.path(loc$temp_folder, "03_outcomes.rds"))
 
-#write sample size reduction table to scratch
-sample_size <- sample_size %>% mutate(cohort_name = cohort)
-write_rds(sample_size, file.path(loc$scratch_folder, "03_sample_size.rds"))
+#write sample size reduction table to temp
+sample_size <- sample_size %>% mutate(cohort_name = cfg$cohort_name)
+write_rds(sample_size, file.path(loc$temp_folder, "03_sample_size.rds"))
 
 
 # #--------------------------------------------------------
@@ -1663,6 +1663,6 @@ write_rds(sample_size, file.path(loc$scratch_folder, "03_sample_size.rds"))
 #        'negatives' = negatives_tab,
 #        'zeros' = zeros_tab,
 #        'not_merged' = not_merged_tab),
-#   file.path(excel_path, 'child_zeros_negatives_missings.xlsx'),
+#   file.path(loc$temp_folder, 'child_zeros_negatives_missings.xlsx'),
 #   overwrite = T)
 # 

@@ -3,7 +3,7 @@ default:
   data_preparation:
     # The name of the cohort
     cohort_name: "newborns_a_mortality"
-    mortality_name: "scratch/newborns_a_mortality/newborns_a_mortality_cohort.rds"
+    mortality_name: "output/newborns_a_mortality_cohort.rds"
     
     # Child birth date filters the cohort by age
     child_birth_date_min: "01/01/2005"
@@ -47,7 +47,9 @@ default:
     # The data folder is the root folder of the cbs microdata tables
     data_folder: "G:/"
     # The scratch folder is used to write intermediate output
-    scratch_folder: "scratch/newborns_a_mortality"
+    temp_folder: "temp/newborns_a_mortality"
+    # The final cohort file (<cohort>_cohort.rds) is written here
+    output_folder: "output"
     
    # path to the cbs microdata
     gba_data: "Bevolking/GBAPERSOONTAB/2024/geconverteerde data/GBAPERSOON2024TABV3.db"
@@ -69,4 +71,9 @@ default:
     girls_sheet: "Tabel meisjes"
     opleiding_data: "K:/Utilities/Code_Listings/SSBreferentiebestanden/OPLEIDINGSNRREFV36.SAV"
     cto_data: "K:/Utilities/Code_Listings/SSBreferentiebestanden/CTOREFV13.SAV"
-  
+
+  pipeline:
+    # The scripts that P_2_1_run_all.R runs for this cohort, in this order. Names
+    # without the version prefix (P_2_0_, P_2_1_), which only exists outside the RA.
+    script_dir: "src/newborns"
+    scripts: ["01_cohort_newborns", "02_predictors_newborns", "03_outcomes_newborns_a_mortality", "04_postprocessing_newborns_mortality"]

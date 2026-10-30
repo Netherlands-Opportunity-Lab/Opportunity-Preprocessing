@@ -9,21 +9,18 @@ export bundle) are in
 [Opportunity-Analysis-Map/JGZ](https://github.com/Netherlands-Opportunity-Lab/Opportunity-Analysis-Map),
 next to the map, regression, descriptives and webmapper scripts.
 
-All paths and settings are in `config/jgz.yml`. Run it like the other
-cohorts, with `cohort <- "jgz"` in `P_2_0_create_cohort_data.R` (repository
-root). That runs steps 00-03 in order; set `jgz_steps` there to rerun only
-some of them (each step reads the previous step's output from disk, e.g.
-`jgz_steps <- c("02", "03")`). Or source the scripts yourself, from the
-repository root, in order:
+All paths and settings are in `config/jgz.yml`. Run it from the repository
+root like the other samples:
 
-```r
-setwd("H:/Opportunity-Preprocessing")
-source("src/jgz/00_clean_and_merge.R")
-source("src/jgz/01_add_gba_postcode.R")
-source("src/jgz/02_contact_moments.R")
-source("src/jgz/03_build_catchment_sample.R")
-source("src/jgz/04_coverage_per_pc4.R")   # optional: check of the catchment areas
 ```
+Rscript P_2_1_run_all.R jgz                       # steps 00-03 in order
+Rscript src/lib/P_2_1_run_cohort.R jgz 02 03      # only steps 02 and 03
+Rscript src/lib/P_2_1_run_cohort.R jgz 04         # the optional coverage check
+```
+
+Each step reads the previous step's output from disk, so a subset can be
+rerun. The steps are listed under `pipeline` in `config/jgz.yml`. The scripts
+can also be sourced one by one from the repository root (`source("src/jgz/00_clean_and_merge.R")`, etc.).
 
 The code is written for the CBS RA versions (R 3.6.2, dplyr 1.0.2): no `|>`,
 no `join_by()`, `if_any()` or `relationship =`.
@@ -32,7 +29,7 @@ no `join_by()`, `if_any()` or `relationship =`.
 
 | Script | Input | Output | What it does |
 |---|---|---|---|
-| `00_clean_and_merge.R` | JGZ ID file, corrected ZONL ID file, health file | `JGZ_panel.rds` + cleaning diagnostics | Cleans the ID and health files, resolves duplicate/conflicting records (switch detection), merges health data to RIN and collapses to one row per child x age. R translation of Coen's do-file "JGZ DATA - CLEAN AND MERGE" |
+| `00_clean_and_merge.R` | JGZ ID file, corrected ZONL ID file, health file | `JGZ_panel.rds`, `JGZ_measurements_clean.rds`, `JGZ_id_link.rds` + cleaning diagnostics | Cleans the ID and health files (saved before any collapse: the measurements, one row per record, and the ID link to RIN), resolves duplicate/conflicting records (switch detection), merges health data to RIN and collapses to one row per child x age. R translation of Coen's do-file "JGZ DATA - CLEAN AND MERGE" |
 | `01_add_gba_postcode.R` | panel (00), GBAADRESOBJECTBUS, VSLPOSTCODEBUS | `jgz_gba_postcode_data.rds` | Adds the GBA address and its PC4 on the date of each contact moment |
 | `02_contact_moments.R` | output of 01 | `cm_<visit>.rds` (15 files) | Assigns each row to a contact moment (fixed age windows) and adds BMI, sex, PC3/PC4 and the target age |
 | `03_build_catchment_sample.R` | panel (00), GBA, KINDOUDER, income, education and health-cost files, `resources/jgz_pc4gebieden.csv` | `Data_CatchmentArea_3pooled_withvariables_R.dta` | Coen's catchment-area sample for the bereik analyses: children living in one organisation's area from 22 to 53 months, observed or not at 2y/3y/3y9m (`d_obs_cat`), with child and family characteristics. Variable names as in Coen's file, so the bereik regression do-file runs on it |

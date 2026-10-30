@@ -326,30 +326,47 @@ Approximate time needed to reproduce the analyses on a standard (2025) desktop m
 
 ## Description of code
 
-Here the code of this repository is described. There are 39 files in total: configuration `.yml`, `01_cohort.R`, `02_predictors.R`, `03_outcomes.R`, `04_postprocessing.R` files for each of the 7 samples, and 2 auxiliary files.
+### Folder layout
+
+| Folder / file | Contents |
+|---|---|
+| `P_2_1_run_all.R` | The one script that builds every cohort file, start to finish |
+| `config/` | One `.yml` per cohort (and `jgz.yml`): all paths, settings and the list of scripts to run. Paths are never hard-coded in scripts |
+| `src/<sample>/` | The pipeline steps. Variants that share code share scripts: `src/prim8/` serves `prim8_a` and `prim8_b`, `src/newborns/` the four newborn samples |
+| `src/lib/` | Shared helpers: running the pipeline and logging (`run_helpers`, `run_cohort`), key checks (`checks`), SQLite reading (`sql_helpers`), diagnostics (`function_kansenkaart_preprocessing`) |
+| `src/jgz/` | The youth health care (JGZ) preprocessing, see `src/jgz/README.md` |
+| `resources/` | Small auxiliary files (CPI, region tables, code lists) |
+| `tests/` | Checks that need no CBS data: `Rscript tests/run_tests.R` |
+| `input/`, `temp/`, `output/` | Not in git. `temp/<cohort>/` holds the intermediate file of each step, `output/` the final `<cohort>_cohort.rds` files and `output/logs/` |
 
 ### Auxiliary code (Provided)
 
 | Script Name | Purpose |
 |------------------------------------|------------------------------------|
-| `create_cbs_countries.R` | Generates CBS-style country classification tables |
-| `set_cbs_versions.R` | Configures version control for CBS files |
-| `src/sql_helpers.R` | `read_cbs()` / `read_db()`: read the converted SQLite (`.db`) versions of the large CBS files, filtered inside SQLite (see `convert_files_to_sqlite/README.md`) |
+| `resources/create_cbs_countries.R` | Generates CBS-style country classification tables |
+| `resources/set_cbs_versions.R` | Configures version control for CBS files |
+| `src/lib/sql_helpers.R` | `read_cbs()` / `read_db()`: read the converted SQLite (`.db`) versions of the large CBS files, filtered inside SQLite (see `convert_files_to_sqlite/README.md`) |
 | `convert_files_to_sqlite/savtosqlite.py` | Converts CBS `.sav` files to `.db` in the format `read_db()` expects |
 
 ### **Sample Creation**
 
-To create a sample dataset, set `cohort` in `P_2_0_create_cohort_data.R` to one of the following and run the script from the repository root:
+Open `kansenkaart_preprocessing.Rproj` (so the working directory is the repository root) and run `P_2_1_run_all.R`, or from the command line in the repository root:
 
--   `newborns_a_perinatal`, `newborns_b_perinatal`, `newborns_a_mortality` or `newborns_b_mortality`
+```
+Rscript P_2_1_run_all.R                    # all samples
+Rscript P_2_1_run_all.R prim8_a prim8_b    # only these samples
+Rscript P_2_1_run_all.R jgz                # the JGZ preprocessing (project 8151 files)
+```
 
--   `prim8_a` or `prim8_b`
+Samples: `newborns_a_perinatal`, `newborns_b_perinatal`, `newborns_a_mortality`, `newborns_b_mortality`, `prim8_a`, `prim8_b`, `age16`, `age21`, `age35` and `jgz`.
 
--   `age16`, `age21` or `age35`
+Each sample runs in its own R process with its configuration, `config/<sample>.yml` (as named in the CBS RA) or `config/P_2_<version>_<sample>.yml` (with the version prefix, as in this repository). The `pipeline` section of that file lists the scripts to run. To rerun only some steps of one sample: `Rscript src/lib/P_2_1_run_cohort.R age35 03 04`.
 
-The script uses the matching configuration, `config/<cohort>.yml` (as named in the CBS RA) or `config/P_2_<version>_<cohort>.yml` (with the version prefix, as in this repository); the sample dataset will be written to the scratch folder.
+After every step the pipeline checks that the cohort data has exactly one row per person (non-missing, unique `RINPERSOONS` + `RINPERSOON`) and stops with a message if not. Every run writes a log to `output/logs/` with the git commit, the configuration, the R and package versions and the time per step.
 
--   `jgz`: the youth health care (JGZ) preprocessing, with its own steps (00-03) and configuration (`config/jgz.yml`); see `src/jgz/README.md`.
+### Versions and archive
+
+A version of the scripts is archived as a **git tag** at the moment results are exported (e.g. `P_2_1`), not as copies in an `archive/` folder: `git checkout P_2_1` gives the scripts exactly as run. The tagged code also goes to Zenodo.
 
 ### **Flowchart Sample Creation**
 
@@ -397,7 +414,7 @@ In this step, we select the individuals from the register that form our samples.
     -   For samples that include youth protection outcomes we create geographical area variables measured at birth
     -   For samples that include neighborhood composition outcomes and correlates we measure 4-digit postcode at the age the neighborhood composition is measured
 
--   Write the resulting sample (`01_cohort.rds)` dataset to *the scratch folder.*
+-   Write the resulting sample (`01_cohort.rds`) to `temp/<sample>/`.
 
 -   At each step we record the sample sizes.
 
@@ -419,7 +436,7 @@ In this step, we incorporate variables from various microdata sets to the sample
 
     -   We compute parental income rank (in percentile) in the parental income distribution.
 
--   \*For the samples for which we measure classroom and neighborhood composition: write classroom and neighborhood samples to the scratch folder.
+-   \*For the samples for which we measure classroom and neighborhood composition: write classroom and neighborhood samples to `temp/<sample>/`.
 
 -   Parental wealth: We obtain information on parental wealth during individual’s childhood from the VEHTAB. Parental wealth represents the average pretax wealth of the household’s head (if these are different for parents, we use the total) combined over a specific period interval (`parent_wealth_year_min` - `parent_wealth_year_max`).
 
@@ -452,7 +469,7 @@ In this step, we incorporate variables from various microdata sets to the sample
 
 -   Type of household: We obtain the type of household a child was growing up in from GBAHUISHOUDENSBUS. We categorize this into 2 levels: Single Parent and Two Parents.
 
--   Write the resulting sample (`02_predictors.rds)` dataset to *the scratch folder.*
+-   Write the resulting sample (`02_predictors.rds`) to `temp/<sample>/`.
 
 -   At each step we record the sample sizes.
 
@@ -464,7 +481,7 @@ In this step, we connect sample-specific outcomes to the samples.
 
 -   We add sample-specific outcomes as described in [Samples and Outcomes](#samples-and-outcomes).
 
--   Write the resulting sample (`03_outcomes.rds)` dataset to *the scratch folder.*
+-   Write the resulting sample (`03_outcomes.rds`) to `temp/<sample>/`.
 
 -   At each step we record the sample sizes.
 
@@ -483,7 +500,7 @@ In this step, we select variables from the created sample data sets that are rel
     1.  0 ≤ Percentile ≤ 20: “Very Low”
     2.  80 ≤ Percentile ≤ 100: “Very High”
 
--   Write sample dataset `sample-name_cohort.rds` to the scratch folder.
+-   Write the sample dataset `<sample>_cohort.rds` to `output/`.
 
 ## Instructions to Replicators
 
@@ -491,6 +508,7 @@ In this step, we select variables from the created sample data sets that are rel
 -   Edit the file locations in the `config` files to point to the right files
 -   Open the `.Rproj` file, install the `renv` package
 -   Run `renv::restore()` to install the right versions of all dependencies
+-   Run `Rscript tests/run_tests.R`, then `P_2_1_run_all.R`
 
 # References
 

@@ -69,7 +69,9 @@ default:
     # The data folder is the root folder of the cbs microdata tables
     data_folder: "G:/"
     # The scratch folder is used to write intermediate output
-    scratch_folder: "scratch/age16"
+    temp_folder: "temp/age16"
+    # The final cohort file (<cohort>_cohort.rds) is written here
+    output_folder: "output"
     
    # path to the cbs microdata
     gba_data: "Bevolking/GBAPERSOONTAB/2024/geconverteerde data/GBAPERSOON2024TABV3.db"
@@ -86,3 +88,9 @@ default:
     migration_data: "K:/Utilities/Code_Listings/SSBreferentiebestanden/LANDAKTUEELREFV13.SAV"
     corop_data: "K:/Utilities/HULPbestanden/GebiedeninNederland/GIN"
     opleiding_data: "K:/Utilities/Code_Listings/SSBreferentiebestanden/OPLEIDINGSNRREFV34.SAV"
+
+  pipeline:
+    # The scripts that P_2_1_run_all.R runs for this cohort, in this order. Names
+    # without the version prefix (P_2_0_, P_2_1_), which only exists outside the RA.
+    script_dir: "src/age16"
+    scripts: ["01_cohort_age16", "02_predictors_age16", "03_outcomes_age16", "04_postprocessing_age16"]

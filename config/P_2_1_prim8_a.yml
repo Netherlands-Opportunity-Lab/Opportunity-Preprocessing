@@ -2,6 +2,10 @@ default:
   data_preparation:
     # The name of the cohort
     cohort_name: "prim8_a"
+
+    # Drop children with missing parental wealth at the end of 02_predictors
+    # (prim8_b did this, prim8_a did not, when their scripts were merged)
+    drop_missing_parental_wealth: false
     
     # Child birth date filters the cohort by age
     child_birth_date_min: "01/01/2003"
@@ -59,7 +63,9 @@ default:
     # The data folder is the root folder of the cbs microdata tables
     data_folder: "G:/"
     # The scratch folder is used to write intermediate output
-    scratch_folder: "scratch/prim8_a"
+    temp_folder: "temp/prim8_a"
+    # The final cohort file (<cohort>_cohort.rds) is written here
+    output_folder: "output"
     
     # path to the cbs microdata
     gba_data: "Bevolking/GBAPERSOONTAB/2024/geconverteerde data/GBAPERSOON2024TABV3.db"
@@ -79,5 +85,9 @@ default:
     advice_data_sheet: "table"
     opleiding_data: "K:/Utilities/Code_Listings/SSBreferentiebestanden/OPLEIDINGSNRREFV36.SAV"
     cto_data: "K:/Utilities/Code_Listings/SSBreferentiebestanden/CTOREFV13.SAV"
-  
 
+  pipeline:
+    # The scripts that P_2_1_run_all.R runs for this cohort, in this order. Names
+    # without the version prefix (P_2_0_, P_2_1_), which only exists outside the RA.
+    script_dir: "src/prim8"
+    scripts: ["01_cohort_prim8", "02_predictors_prim8", "03_outcomes_prim8_a", "04_postprocessing_prim8"]

@@ -119,6 +119,11 @@ default:
     # --- outputs, in pipeline order ------------------------------------------
     # 00: one row per child (RIN) x age (leeftijd)
     panel_file: "H:/JGZ-Panel-Data/JGZ_panel.rds"
+    # 00, saved before any collapse: the cleaned health measurements (one row
+    # per record, key measurement_id) and the cleaned ID file (child ID -> RIN),
+    # so collapse and merge rules can be revisited without rerunning the cleaning
+    measurements_file: "H:/JGZ-Panel-Data/JGZ_measurements_clean.rds"
+    id_link_file: "H:/JGZ-Panel-Data/JGZ_id_link.rds"
     # 01: panel plus GBA address and postcode at each contact moment
     panel_postcode_file: "H:/JGZ-Pilot-Data/jgz_gba_postcode_data.rds"
     # 02: one .rds per contact moment (input of the map tables in
@@ -161,3 +166,11 @@ default:
     catch_land_etngrp_file: "K:/Utilities/Code_Listings/SSBreferentiebestanden/Geconverteerde data/LANDAKTUEELREFV9.dta"
     catch_oplnr_ref_file:   "K:/Utilities/Code_Listings/SSBreferentiebestanden/Geconverteerde data/OPLEIDINGSNRREFV24.dta"
     catch_cto_ref_file:     "K:/Utilities/Code_Listings/SSBreferentiebestanden/Geconverteerde data/CTOREFV8.dta"
+
+  pipeline:
+    # The steps P_2_1_run_all.R runs for the JGZ (each reads the previous step's
+    # output from disk, so a subset can be rerun: steps = c("02", "03")).
+    # optional_scripts only run when asked for by step number, e.g. steps = "04".
+    script_dir: "src/jgz"
+    scripts: ["00_clean_and_merge", "01_add_gba_postcode", "02_contact_moments", "03_build_catchment_sample"]
+    optional_scripts: ["04_coverage_per_pc4"]
