@@ -14,7 +14,7 @@ Reads of converted files are marked `[SQL]` in the scripts, with the reason for 
 Needs the R packages DBI and RSQLite (both available in the CBS RA).
 
 The scripts as they were before this change (everything read with `read_sav()`) are in
-the git history, under the tag `sav-pipeline`.
+the git history: commit `c019c13` (the last commit before the switch).
 
 ## Which files are read from `.db`
 
