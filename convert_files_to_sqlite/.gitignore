@@ -1,2 +1,3 @@
 # converted .db files are written here in the RA; never commit them
 *.db
+__pycache__/
