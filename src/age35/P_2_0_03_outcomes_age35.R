@@ -7,6 +7,13 @@
 #   - Adding housing outcomes to the cohort.
 #   - Writing `scratch/03_outcomes.rds`.
 #
+# SQLite version: the files that are available as converted .db (GBAPERSOON,
+# GBAADRESOBJECT, KINDOUDER, GBAHUISHOUDENS, VSLPOSTCODE, VSLGWB, LEVCYCLWOONNIETWOON,
+# SECMBUS) are read with read_cbs() (src/sql_helpers.R): only the rows
+# that are needed leave the database. If the config still points to a .sav, read_cbs()
+# reads it with read_sav() and applies the same filter in R. All other files are read
+# with read_sav(), exactly as before. Changes are marked with [SQL].
+#
 # (c) ODISSEI Social Data Science team 2025
 
 
@@ -50,7 +57,8 @@ cpi_tab <- cpi_tab %>%
 
 # We only include children who live continuously in the Netherlands 
 adres_path <- file.path(loc$data_folder, loc$gbaao_data)
-adres_tab  <- read_sav(adres_path) %>%
+# [SQL] the children filter below is now also done inside SQLite
+adres_tab  <- read_cbs(adres_path, filter_in = list(RINPERSOON = cohort_dat$RINPERSOON)) %>%
   # select only children
   filter(RINPERSOON %in% cohort_dat$RINPERSOON) %>% 
   mutate(
@@ -633,7 +641,20 @@ get_spolis_filename <- function(year) {
     full.names = TRUE
   )
   # return only the latest version
-  sort(fl, decreasing = TRUE)[1]
+  sav <- sort(fl, decreasing = TRUE)[1]
+
+  # [SQL] use the converted .db of exactly this file (same name, so the same version) if it
+  #       exists: first in spolis_db_folder from the config (e.g. your own converted files
+  #       on H:), then in 'geconverteerde data' next to the .sav. Otherwise the .sav as before.
+  db_dirs <- file.path(loc$data_folder, "Spolis/SPOLISBUS", "geconverteerde data")
+  if (!is.null(loc$spolis_db_folder) && nzchar(loc$spolis_db_folder)) {
+    db_dirs <- c(cbs_path(loc, "spolis_db_folder"), db_dirs)
+  }
+  for (d in db_dirs) {
+    db <- file.path(d, paste0(tools::file_path_sans_ext(basename(sav)), ".db"))
+    if (file.exists(db)) return(db)
+  }
+  sav
 }
 
 # create dataframe with all spolis entries for selected years
@@ -649,9 +670,14 @@ spolis_tab <- tibble(
 for (year in seq(as.integer(cfg$child_outcome_year_min), as.integer(cfg$child_outcome_year_max))) {
   spolis_tab <-
     # read file from disk
-    read_sav(get_spolis_filename(year),
-             col_select = c("RINPERSOONS", "RINPERSOON", "SBASISLOON",
-                            "SBASISUREN", "SCONTRACTSOORT")) %>%
+    # [SQL] only the children in the cohort (the filter below), now done when reading.
+    #       Note: as_factor(contract_type) is now built from the cohort's rows only; that
+    #       gives the same factor as before as long as all SCONTRACTSOORT values have a label.
+    read_cbs(get_spolis_filename(year),
+             cols = c("RINPERSOONS", "RINPERSOON", "SBASISLOON",
+                      "SBASISUREN", "SCONTRACTSOORT"),
+             filter_in = list(RINPERSOON = cohort_dat$RINPERSOON),
+             numeric = c("SBASISLOON", "SBASISUREN")) %>%
     # add year
     mutate(year = year) %>%
     rename(
@@ -738,8 +764,11 @@ cohort_dat <-
 #### SOCIOECONOMIC ####
 
 secm_tab <-
-  read_sav(file.path(loc$data_folder, loc$secm_data),
-           col_select = c("RINPERSOONS", "RINPERSOON", "AANVSECM", "EINDSECM", "SECM")) %>%
+  # [SQL] SECMBUS: the children filter below is now also done inside SQLite.
+  #       cbs_path(): secm_data may also be a full path (e.g. your own converted .db on H:)
+  read_cbs(cbs_path(loc, "secm_data"),
+           cols = c("RINPERSOONS", "RINPERSOON", "AANVSECM", "EINDSECM", "SECM"),
+           filter_in = list(RINPERSOON = cohort_dat$RINPERSOON)) %>%
   # select only children in the data
   filter(RINPERSOON %in% cohort_dat$RINPERSOON) %>%
   mutate(RINPERSOONS = as_factor(RINPERSOONS, levels = "values"),
@@ -992,7 +1021,9 @@ sample_size <- sample_size %>% mutate(n_8_child_wealth = nrow(cohort_dat))
 
 # find home address
 adres_path <- file.path(loc$data_folder, loc$gbaao_data)
-adres_dat  <- read_sav(adres_path) %>% 
+# [SQL] only addresses of the children: adres_dat is only used for children in cohort_dat
+#       below (homeowner, living space at 35 and 34), and cohort_dat only gets smaller
+adres_dat  <- read_cbs(adres_path, filter_in = list(RINPERSOON = cohort_dat$RINPERSOON)) %>% 
   mutate(
     RINPERSOONS = as_factor(RINPERSOONS, levels = "values"),
     SOORTOBJECTNUMMER = as_factor(SOORTOBJECTNUMMER, levels = "values"),
@@ -1191,9 +1222,12 @@ not_merged_tab <- not_merged_func('SOORTOBJECTNUMMER')
 # LIVING SPACE 
 
 woon_dat <-
-  read_sav(file.path(loc$data_folder, loc$woon_data),
-           col_select = c("SOORTOBJECTNUMMER", "RINOBJECTNUMMER", "VBOOPPERVLAKTE", 
-                          "AANVLEVCYCLWOONNIETWOON", "EINDLEVCYCLWOONNIETWOON")
+  # [SQL] only dwellings where a cohort child lived (adres_dat): woon_dat is only joined
+  #       to the children's homes, at age 35 and at age 34
+  read_cbs(file.path(loc$data_folder, loc$woon_data),
+           cols = c("SOORTOBJECTNUMMER", "RINOBJECTNUMMER", "VBOOPPERVLAKTE", 
+                    "AANVLEVCYCLWOONNIETWOON", "EINDLEVCYCLWOONNIETWOON"),
+           filter_in = list(RINOBJECTNUMMER = adres_dat$RINOBJECTNUMMER)
            ) %>%
   mutate(SOORTOBJECTNUMMER = as_factor(SOORTOBJECTNUMMER, levels = "values"), 
          AANVLEVCYCLWOONNIETWOON = ymd(AANVLEVCYCLWOONNIETWOON))
@@ -1408,9 +1442,11 @@ rm(household_members, adres_dat, woon_dat)
 #### AGE LEFT PARENTS ####
 # load household data
 household_dat <-
-  read_sav(file.path(loc$data_folder, loc$household_data),
-           col_select = c("RINPERSOONS", "RINPERSOON", "DATUMAANVANGHH",
-                          "DATUMEINDEHH", "PLHH")) %>%
+  # [SQL] the cohort filter below is now also done inside SQLite
+  read_cbs(file.path(loc$data_folder, loc$household_data),
+           cols = c("RINPERSOONS", "RINPERSOON", "DATUMAANVANGHH",
+                    "DATUMEINDEHH", "PLHH"),
+           filter_in = list(RINPERSOON = cohort_dat$RINPERSOON)) %>%
   filter(RINPERSOON %in% cohort_dat$RINPERSOON) %>%
   mutate(
     RINPERSOONS = as_factor(RINPERSOONS, levels = "value"),

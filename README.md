@@ -334,6 +334,8 @@ Here the code of this repository is described. There are 39 files in total: conf
 |------------------------------------|------------------------------------|
 | `create_cbs_countries.R` | Generates CBS-style country classification tables |
 | `set_cbs_versions.R` | Configures version control for CBS files |
+| `src/sql_helpers.R` | `read_cbs()` / `read_db()`: read the converted SQLite (`.db`) versions of the large CBS files, filtered inside SQLite (see `convert_files_to_sqlite/README.md`) |
+| `convert_files_to_sqlite/savtosqlite.py` | Converts CBS `.sav` files to `.db` in the format `read_db()` expects |
 
 ### **Sample Creation**
 
@@ -369,7 +371,7 @@ The configuration files for each of the samples can be found in the `config` fol
 
 -   CPI base year used for deflating income
 
--   File paths to raw CBS microdata and auxiliary resources such as price indices, migration codes, and regional mappings
+-   File paths to raw CBS microdata and auxiliary resources such as price indices, migration codes, and regional mappings. The large CBS files that have a converted SQLite version point to the `.db`; a `.sav` path also works (same result, slower). See `convert_files_to_sqlite/README.md`
 
 ### 2. **Pipeline**
 

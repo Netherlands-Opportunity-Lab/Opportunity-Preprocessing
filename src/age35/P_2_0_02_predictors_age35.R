@@ -5,6 +5,13 @@
 #    - Adding migration background information to the cohort.
 #    - Writing `scratch/02_predictor.rds`
 #
+# SQLite version: the files that are available as converted .db (GBAPERSOON,
+# GBAADRESOBJECT, KINDOUDER, GBAHUISHOUDENS, VSLPOSTCODE, VSLGWB, LEVCYCLWOONNIETWOON,
+# SECMBUS) are read with read_cbs() (src/sql_helpers.R): only the rows
+# that are needed leave the database. If the config still points to a .sav, read_cbs()
+# reads it with read_sav() and applies the same filter in R. All other files are read
+# with read_sav(), exactly as before. Changes are marked with [SQL].
+#
 # (c) ODISSEI Social Data Science team 2025
 
 
@@ -47,7 +54,9 @@ cpi_tab <- cpi_tab %>%
 
 # We only include parents who live continuously in the Netherlands
 adres_path <- file.path(loc$data_folder, loc$gbaao_data)
-adres_tab  <- read_sav(adres_path) %>%
+# [SQL] the parent filter below is now also done inside SQLite
+adres_tab  <- read_cbs(adres_path,
+                       filter_in = list(RINPERSOON = c(cohort_dat$RINPERSOONpa, cohort_dat$RINPERSOONMa))) %>%
   # select only parents
   filter((RINPERSOON %in% cohort_dat$RINPERSOONpa) |
            (RINPERSOON %in% cohort_dat$RINPERSOONMa)) %>%
@@ -906,8 +915,10 @@ cohort_dat <- cohort_dat %>%
 # import gba for parents generation and origin
 gba_path <- file.path(loc$data_folder, loc$gba_data)
 gba_dat <-  
-  read_sav(gba_path, col_select = c("RINPERSOONS", "RINPERSOON",
-                                    "GBAGENERATIE", "GBAHERKOMSTGROEPERING")) %>% 
+  # [SQL] only the parents (gba_dat is only left-joined on the parent ids)
+  read_cbs(gba_path, cols = c("RINPERSOONS", "RINPERSOON",
+                              "GBAGENERATIE", "GBAHERKOMSTGROEPERING"),
+           filter_in = list(RINPERSOON = c(cohort_dat$RINPERSOONpa, cohort_dat$RINPERSOONMa))) %>% 
   mutate(RINPERSOONS  = as_factor(RINPERSOONS,  levels = "values"),
          GBAGENERATIE = as_factor(GBAGENERATIE, levels = "label"),
          GBAHERKOMSTGROEPERING = as_factor(GBAHERKOMSTGROEPERING, levels = "labels"))
@@ -1015,9 +1026,11 @@ rm(gba_dat)
 
 # import household  data
 household_dat <-
-  read_sav(file.path(loc$data_folder, loc$household_data),
-           col_select = c("RINPERSOONS", "RINPERSOON", "DATUMAANVANGHH",
-                          "DATUMEINDEHH", "TYPHH")) %>%
+  # [SQL] the cohort filter below is now also done inside SQLite
+  read_cbs(file.path(loc$data_folder, loc$household_data),
+           cols = c("RINPERSOONS", "RINPERSOON", "DATUMAANVANGHH",
+                    "DATUMEINDEHH", "TYPHH"),
+           filter_in = list(RINPERSOON = cohort_dat$RINPERSOON)) %>%
   filter(RINPERSOON %in% cohort_dat$RINPERSOON)
 
 

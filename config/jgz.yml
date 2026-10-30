@@ -138,8 +138,8 @@ default:
     # Same versions as the prim8_a/prim8_b pipelines (config/P_2_1_prim8_*.yml),
     # since 23 Oct 2026; before: GBAPERSOON2023TABV1, GBAADRESOBJECT2023BUSV1,
     # VSLPOSTCODEBUSV2025031, KINDOUDER2023TABV1.
-    # Read from the SQLite versions (.db, "geconverteerde data", as in
-    # sqlexperiment/): only the rows needed are read. To read the .sav instead
+    # Read from the SQLite versions (.db, "geconverteerde data", as the other
+    # cohorts): only the rows needed are read. To read the .sav instead
     # (slower, same result), use the .sav path, e.g.
     # "Bevolking/GBAPERSOONTAB/2024/GBAPERSOON2024TABV3.sav". Reading a .db
     # needs the R packages DBI and RSQLite.

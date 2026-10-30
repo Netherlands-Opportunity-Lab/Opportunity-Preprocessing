@@ -6,6 +6,12 @@
 #   - Adding postal code / region information to the cohort.
 #   - Writing `scratch/01_cohort.rds`.
 #
+# SQLite version: the files that are available as converted .db (GBAPERSOON,
+# GBAADRESOBJECT, KINDOUDER, GBAHUISHOUDENS, VSLPOSTCODE, VSLGWB, LEVCYCLWOONNIETWOON)
+# are read with read_cbs() (src/sql_helpers.R): only the rows that are
+# needed leave the database. All other files are still read with read_sav(), exactly
+# as before. Changes are marked with [SQL].
+#
 # (c) ODISSEI Social Data Science team 2025
 
 
@@ -80,18 +86,30 @@ cohort_dat <-
 
 # load gba data for migration background
 gba_path <- file.path(loc$data_folder, loc$gba_data)
+
+# [SQL] the same cleaning as before, now in a function because GBA is read twice:
+#       once for the children (here), once for the parents (see PARENT LINK)
+prep_gba <- function(dat) {
+  dat %>%
+    mutate(birthdate = dmy(paste(GBAGEBOORTEDAG, GBAGEBOORTEMAAND, GBAGEBOORTEJAAR, sep = "-"))) %>% 
+    select(-GBAGEBOORTEJAAR, -GBAGEBOORTEMAAND, -GBAGEBOORTEDAG) %>%
+    mutate(RINPERSOONS = as_factor(RINPERSOONS, levels = "values"),
+           GBAHERKOMSTGROEPERING = as_factor(GBAHERKOMSTGROEPERING, levels = "labels"),
+           GBAGENERATIE = as_factor(GBAGENERATIE, levels = "labels"),
+           GBAGESLACHT = as_factor(GBAGESLACHT), levels = "labels") %>%
+    mutate(across(c("GBAHERKOMSTGROEPERING", "GBAGENERATIE", "GBAGESLACHT"),
+                  as.character)) 
+}
+
+gba_cols <- c("RINPERSOONS", "RINPERSOON", "GBAGESLACHT", 
+              "GBAGEBOORTEJAAR", "GBAGEBOORTEMAAND", "GBAGEBOORTEDAG", "GBAGENERATIE", 
+              "GBAHERKOMSTGROEPERING")
+
+# [SQL] only the children in the cohort (here gba_dat is only joined on the children)
 gba_dat <-  
-  read_sav(gba_path, col_select = c("RINPERSOONS", "RINPERSOON", "GBAGESLACHT", 
-                                    "GBAGEBOORTEJAAR", "GBAGEBOORTEMAAND", "GBAGEBOORTEDAG", "GBAGENERATIE", 
-                                    "GBAHERKOMSTGROEPERING")) %>% 
-  mutate(birthdate = dmy(paste(GBAGEBOORTEDAG, GBAGEBOORTEMAAND, GBAGEBOORTEJAAR, sep = "-"))) %>% 
-  select(-GBAGEBOORTEJAAR, -GBAGEBOORTEMAAND, -GBAGEBOORTEDAG) %>%
-  mutate(RINPERSOONS = as_factor(RINPERSOONS, levels = "values"),
-         GBAHERKOMSTGROEPERING = as_factor(GBAHERKOMSTGROEPERING, levels = "labels"),
-         GBAGENERATIE = as_factor(GBAGENERATIE, levels = "labels"),
-         GBAGESLACHT = as_factor(GBAGESLACHT), levels = "labels") %>%
-  mutate(across(c("GBAHERKOMSTGROEPERING", "GBAGENERATIE", "GBAGESLACHT"),
-                as.character)) 
+  read_cbs(gba_path, cols = gba_cols,
+           filter_in = list(RINPERSOON = cohort_dat$RINPERSOON)) %>% 
+  prep_gba()
   
 
 # There are some records where RINPERSOONS is not R in perined, but do show up in GBAPersoontab
@@ -128,7 +146,9 @@ sample_size <- tibble(n_0_birth_cohort = nrow(cohort_dat))
 kindouder_path <- file.path(loc$data_folder, loc$kind_data)
 cohort_dat <-
   cohort_dat %>%
-  left_join(read_sav(kindouder_path) %>% select(-(XKOPPELNUMMER)) %>%
+  # [SQL] only the children in the cohort (the left join ignores all other rows)
+  left_join(read_cbs(kindouder_path, filter_in = list(RINPERSOON = cohort_dat$RINPERSOON)) %>%
+              select(-(XKOPPELNUMMER)) %>%
                as_factor(only_labelled = TRUE, levels = "values"),
              by = c("RINPERSOONS", "RINPERSOON"))
 
@@ -145,6 +165,16 @@ cohort_dat <-
     Rinpersoon_Moeder = ifelse(is.na(Rinpersoon_Moeder), RINPERSOONMa, Rinpersoon_Moeder)
   ) %>%
   filter(!is.na(Rinpersoon_Moeder) & (CBKSoortNr_Moeder != 'G'))
+
+
+# [SQL] gba_dat only holds the children, so read the parents separately: the mothers
+#       for the migration background below and both parents for AGE PARENTS AT BIRTH
+#       (cohort_dat does not change in between, so this covers every lookup below)
+gba_dat <-  
+  read_cbs(gba_path, cols = gba_cols,
+           filter_in = list(RINPERSOON = c(cohort_dat$Rinpersoon_Moeder, 
+                                           cohort_dat$RINPERSOONMa, cohort_dat$RINPERSOONpa))) %>% 
+  prep_gba()
 
 
 # for children for whom we cannot find a match use the migration background of the mother
@@ -199,7 +229,10 @@ rm(parents_age, gba_dat)
 #### REGION LINK ####
 # find childhood home
 adres_path <- file.path(loc$data_folder, loc$gbaao_data)
-adres_tab <- read_sav(adres_path) %>%
+# [SQL] only addresses of the children and their mothers: these are the only two
+#       filters applied to adres_tab below (childhood home, mother's home at birth)
+adres_tab <- read_cbs(adres_path, 
+                      filter_in = list(RINPERSOON = c(cohort_dat$RINPERSOON, cohort_dat$RINPERSOONMa))) %>%
   as_factor(only_labelled = TRUE, levels = "values") %>%
   mutate(GBADATUMAANVANGADRESHOUDING = ymd(GBADATUMAANVANGADRESHOUDING),
          GBADATUMEINDEADRESHOUDING = ymd(GBADATUMEINDEADRESHOUDING))
@@ -256,7 +289,8 @@ rm(adres_tab, home_tab_child, home_tab_mom)
 
 # clean the postcode table
 vslpc_path <- file.path(loc$data_folder, loc$postcode_data)
-vslpc_tab  <- read_sav(vslpc_path) %>%
+# [SQL] only the dwellings we link below (childhood_home, which came from adres_tab)
+vslpc_tab  <- read_cbs(vslpc_path, filter_in = list(RINOBJECTNUMMER = cohort_dat$childhood_home)) %>%
   mutate(
     SOORTOBJECTNUMMER = as_factor(SOORTOBJECTNUMMER, levels = "values"),
     DATUMAANVPOSTCODENUMADRES = ymd(DATUMAANVPOSTCODENUMADRES),
@@ -278,7 +312,12 @@ cohort_dat <- inner_join(cohort_dat, vslpc_tab,
 
 # add region/neighbourhood codes to cohort
 vslgwb_path <- file.path(loc$data_folder, loc$vslgwb_data) 
-vslgwb_tab  <- read_sav(vslgwb_path) %>%
+# [SQL] only the columns used below, and only the dwellings we link below
+vslgwb_tab  <- read_cbs(vslgwb_path,
+                        cols = c("SOORTOBJECTNUMMER", "RINOBJECTNUMMER",
+                                 paste0("gem", year(dmy(cfg$gwb_target_date))),
+                                 paste0("wc", year(dmy(cfg$gwb_target_date)))),
+                        filter_in = list(RINOBJECTNUMMER = cohort_dat$childhood_home)) %>%
   mutate(SOORTOBJECTNUMMER = as_factor(SOORTOBJECTNUMMER, levels = "values"))
 
 # select region/neighbourhood from the target date

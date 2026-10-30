@@ -3,6 +3,12 @@
 # 3. Outcome creation.
 #   - Adding primary school outcomes to the cohort.
 #
+# SQLite version: the files that are available as converted .db (GBAPERSOON,
+# GBAADRESOBJECT, KINDOUDER, GBAHUISHOUDENS, VSLPOSTCODE, VSLGWB, LEVCYCLWOONNIETWOON)
+# are read with read_cbs() (src/sql_helpers.R): only the rows that are needed leave
+# the database. All other files are still read with read_sav(), exactly as before.
+# Changes are marked with [SQL].
+#
 # (c) ODISSEI Social Data Science team 2025
 
 
@@ -253,7 +259,11 @@ before_neighborhood <- cohort_dat
 
 #### POSTCODE LINK IN THE LAST (CALENDAR) YEAR TOOK THE CITO TEST OF PRIMARY SCHOOL ####
 # find home
-adres_dat <- read_sav(file.path(loc$data_folder, loc$gbaao_data)) %>%
+# [SQL] only addresses of the cohort children. adres_dat is only used for children
+#       in cohort_dat (which only gets smaller from here on), so it is also reused
+#       for LIVING SPACE below instead of reading the address table a second time.
+adres_dat <- read_cbs(file.path(loc$data_folder, loc$gbaao_data),
+                     filter_in = list(RINPERSOON = cohort_dat$RINPERSOON)) %>%
   mutate(
     RINPERSOONS = as_factor(RINPERSOONS, levels = "values"),
     SOORTOBJECTNUMMER = as_factor(SOORTOBJECTNUMMER, levels = "values"),
@@ -329,7 +339,8 @@ home_tab <- rbind (home_tab, home_tab_missing_before)
 
 # clean the postcode table
 vslpc_path <- file.path(loc$data_folder, loc$postcode_data)
-vslpc_tab  <- read_sav(vslpc_path) %>%
+# [SQL] only the dwellings that occur in adres_dat (home_tab comes from there)
+vslpc_tab  <- read_cbs(vslpc_path, filter_in = list(RINOBJECTNUMMER = adres_dat$RINOBJECTNUMMER)) %>%
   mutate(
     SOORTOBJECTNUMMER = as_factor(SOORTOBJECTNUMMER, levels = "values"),
     DATUMAANVPOSTCODENUMADRES = ymd(DATUMAANVPOSTCODENUMADRES),
@@ -655,12 +666,9 @@ cohort_dat <-
 #### LIVING SPACE PER HOUSEHOLD MEMBER ####
 
 #load home addresses
-adres_tab <- read_sav(file.path(loc$data_folder, loc$gbaao_data)) %>%
-  mutate(
-    RINPERSOONS = as_factor(RINPERSOONS, levels = "values"),
-    SOORTOBJECTNUMMER = as_factor(SOORTOBJECTNUMMER, levels = "values"),
-    GBADATUMAANVANGADRESHOUDING = ymd(GBADATUMAANVANGADRESHOUDING),
-    GBADATUMEINDEADRESHOUDING = ymd(GBADATUMEINDEADRESHOUDING))
+# [SQL] reuse adres_dat (cohort children, same cleaning as here) instead of reading
+#       the full address table again; the cohort filter below is unchanged
+adres_tab <- adres_dat
 
 
 # load home addresses
@@ -695,9 +703,11 @@ rm(adres_tab)
 # LIVING SPACE
 
 woon_dat <-
-  read_sav(file.path(loc$data_folder, loc$woon_data),
-           col_select = c("SOORTOBJECTNUMMER", "RINOBJECTNUMMER", "VBOOPPERVLAKTE",
-                          "AANVLEVCYCLWOONNIETWOON", "EINDLEVCYCLWOONNIETWOON")) %>%
+  # [SQL] only the dwellings of the cohort (woon_dat is only joined to those)
+  read_cbs(file.path(loc$data_folder, loc$woon_data),
+          cols = c("SOORTOBJECTNUMMER", "RINOBJECTNUMMER", "VBOOPPERVLAKTE",
+                   "AANVLEVCYCLWOONNIETWOON", "EINDLEVCYCLWOONNIETWOON"),
+          filter_in = list(RINOBJECTNUMMER = cohort_dat$RINOBJECTNUMMER)) %>%
   mutate(SOORTOBJECTNUMMER = as_factor(SOORTOBJECTNUMMER, levels = "values"),
          AANVLEVCYCLWOONNIETWOON = ymd(AANVLEVCYCLWOONNIETWOON),
          EINDLEVCYCLWOONNIETWOON = ifelse(EINDLEVCYCLWOONNIETWOON == "88888888",

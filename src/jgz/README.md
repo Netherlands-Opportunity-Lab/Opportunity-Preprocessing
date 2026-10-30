@@ -129,8 +129,8 @@ no `join_by()`, `if_any()` or `relationship =`.
   GBAADRESOBJECTBUS, VSLPOSTCODEBUS and KINDOUDERTAB are the same versions as
   in prim8_a/prim8_b (2024/2024/2026031/2025; before: 2023/2023/2025031/2023),
   so the pipelines can share files. These four are read from their SQLite
-  versions (`.db` in the "geconverteerde data" folders, as prim8_a in
-  `sqlexperiment/`) with `read_cbs()` in `jgz_helpers.R`: only the rows of the
+  versions (`.db` in the "geconverteerde data" folders, as the other
+  cohorts in `src/`) with `read_cbs()` in `jgz_helpers.R`: only the rows of the
   JGZ children, their parents, siblings and addresses are read, instead of the
   whole file. Needs the R packages DBI and RSQLite; pointing a path in the
   config to the `.sav` gives the same result with `read_sav()`. The yearly

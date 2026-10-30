@@ -1,3 +1,4 @@
+# Files that have a converted SQLite version point to that .db (read with read_cbs(), see src/sql_helpers.R).
 default:
   data_preparation:
     # The name of the cohort
@@ -49,12 +50,12 @@ default:
     scratch_folder: "scratch/newborns_a_perinatal"
     
    # path to the cbs microdata
-    gba_data: "Bevolking/GBAPERSOONTAB/2024/GBAPERSOON2024TABV3.sav"
-    gbaao_data: "Bevolking/GBAADRESOBJECTBUS/GBAADRESOBJECT2024BUSV1.sav"
-    kind_data: "Bevolking/KINDOUDERTAB/KINDOUDER2025TABV2.sav"
-    postcode_data: "BouwenWonen/VSLPOSTCODEBUS/VSLPOSTCODEBUSV2026031.sav"
-    vslgwb_data: "BouwenWonen/VSLGWBTAB/VSLGWB2025TAB03V1.sav"
-    household_data: "Bevolking/GBAHUISHOUDENSBUS/GBAHUISHOUDENS2024BUSV1.sav"
+    gba_data: "Bevolking/GBAPERSOONTAB/2024/geconverteerde data/GBAPERSOON2024TABV3.db"
+    gbaao_data: "Bevolking/GBAADRESOBJECTBUS/geconverteerde data/GBAADRESOBJECT2024BUSV1.db"
+    kind_data: "Bevolking/KINDOUDERTAB/geconverteerde data/KINDOUDER2025TABV2.db"
+    postcode_data: "BouwenWonen/VSLPOSTCODEBUS/geconverteerde data/VSLPOSTCODEBUSV2026031.db"
+    vslgwb_data: "BouwenWonen/VSLGWBTAB/geconverteerde data/VSLGWB2025TAB03V1.db"
+    household_data: "Bevolking/GBAHUISHOUDENSBUS/geconverteerde data/GBAHUISHOUDENS2024BUSV1.db"
 
     # perined data
     perined_data: 'resources/8151_PERINED.rds'

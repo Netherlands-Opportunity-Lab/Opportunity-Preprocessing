@@ -68,7 +68,7 @@ month_idx <- function(d) as.integer(format(d, "%Y")) * 12L + as.integer(format(d
 
 # The large CBS files are read from their SQLite versions (.db, in the
 # "geconverteerde data" folder next to the catalog file), as in
-# sqlexperiment/ for prim8_a: only the rows needed (filtered on IDs inside
+# the other cohorts (src/sql_helpers.R): only the rows needed (filtered on IDs inside
 # SQLite) and columns needed come back to R, instead of reading the whole
 # .sav. Point a path in the config to the .sav instead to fall back to
 # read_sav() (same result, but the whole file is read on every call).
@@ -94,7 +94,7 @@ read_cbs <- function(file, cols = NULL, filter_in = NULL) {
   dat
 }
 
-# read_db(): adapted from sqlexperiment/src/sql_helpers.R (ODISSEI Social Data
+# read_db(): adapted from src/sql_helpers.R (ODISSEI Social Data
 # Science team 2026). Opens the .db read-only; ID filters go into TEMP tables
 # and are applied inside SQLite; rows come back in file order (ORDER BY rowid)
 # and value labels from the `value_labels` table are re-attached, so the result
@@ -164,7 +164,7 @@ read_db <- function(path, cols = NULL, filter_in = NULL) {
 }
 
 # Column names of the `value_labels` table (variable, value, label), detected
-# as in sqlexperiment/; set options(sqlexp.label_cols = c(...)) if that fails.
+# as in src/sql_helpers.R; set options(sqlexp.label_cols = c(...)) if that fails.
 .label_cols <- function(lab) {
   opt <- getOption("sqlexp.label_cols")
   if (!is.null(opt)) return(setNames(opt, c("var", "value", "label")))

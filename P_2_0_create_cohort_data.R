@@ -54,6 +54,11 @@ if (cohort == "jgz") {
   }
   if (length(cfg_file) != 1) stop("No (unique) config file for cohort '", cohort, "' in config/")
 
+  # read_cbs() / read_db(): read the converted SQLite (.db) versions of the large
+  # CBS files, filtered inside SQLite; a .sav path in the config falls back to
+  # read_sav(). Needs the R packages DBI and RSQLite. See convert_files_to_sqlite/README.md
+  source("src/sql_helpers.R")
+
   # load the configuration
   cfg <- config::get("data_preparation", file = cfg_file)
   loc <- config::get("file_locations",   file = cfg_file)
@@ -62,7 +67,7 @@ if (cohort == "jgz") {
   if (!dir.exists(loc$scratch_folder)) dir.create(loc$scratch_folder)
 
   # diagnostics workbooks (age35: parents_zeros_negatives_missings.xlsx) go
-  # to the scratch folder of the cohort, as in sqlexperiment/run_experiment.R
+  # to the scratch folder of the cohort
   excel_path <- loc$scratch_folder
 
 

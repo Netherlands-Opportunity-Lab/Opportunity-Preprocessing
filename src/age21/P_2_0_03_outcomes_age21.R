@@ -3,6 +3,13 @@
 # 3. Outcome creation.
 #   - Adding students outcomes to the cohort.
 #NOTE: outcomes using hoogsteopltab cannot be created yet
+# SQLite version: the files that are available as converted .db (GBAPERSOON,
+# GBAADRESOBJECT, KINDOUDER, GBAHUISHOUDENS, VSLPOSTCODE, VSLGWB, LEVCYCLWOONNIETWOON,
+# SECMBUS) are read with read_cbs() (src/sql_helpers.R): only the rows
+# that are needed leave the database. If the config still points to a .sav, read_cbs()
+# reads it with read_sav() and applies the same filter in R. All other files are read
+# with read_sav(), exactly as before. Changes are marked with [SQL].
+#
 # (c) ODISSEI Social Data Science team 2025
 
 
@@ -32,7 +39,9 @@ cohort_dat <-
 
 # We only include children who live continuously in the Netherlands 
 # children are only allowed to live up to 31 days not in the netherlands
-adres_tab <- read_sav(file.path(loc$data_folder, loc$gbaao_data)) %>%
+# [SQL] the children filter below is now also done inside SQLite
+adres_tab <- read_cbs(file.path(loc$data_folder, loc$gbaao_data),
+                      filter_in = list(RINPERSOON = cohort_dat$RINPERSOON)) %>%
   # select only children
   filter(RINPERSOON %in% cohort_dat$RINPERSOON) %>% 
   mutate(
@@ -169,9 +178,11 @@ rm(education_dat)
      
 #### LIVING AT HOME ####
 household_dat <-
-  read_sav(file.path(loc$data_folder, loc$household_data),
-           col_select = c("RINPERSOONS", "RINPERSOON", "DATUMAANVANGHH",
-                          "DATUMEINDEHH", "PLHH")) %>%
+  # [SQL] the cohort filter below is now also done inside SQLite
+  read_cbs(file.path(loc$data_folder, loc$household_data),
+           cols = c("RINPERSOONS", "RINPERSOON", "DATUMAANVANGHH",
+                    "DATUMEINDEHH", "PLHH"),
+           filter_in = list(RINPERSOON = cohort_dat$RINPERSOON)) %>%
   filter(RINPERSOON %in% cohort_dat$RINPERSOON) %>%
   mutate(
     RINPERSOONS = as_factor(RINPERSOONS, levels = "value"),
@@ -257,8 +268,13 @@ rm(hh_tab, hh_tab_missing, age_tab, household_dat)
 
 
 # load kinderoudertab 
-kindouder_dat <- read_sav(file.path(loc$data_folder, loc$kind_data),
-                          col_select = -c("XKOPPELNUMMER")) %>%
+# [SQL] only rows where the mother or the father is in the cohort (the first condition of
+#       the filter below, now also done when reading); XKOPPELNUMMER is dropped afterwards
+kindouder_dat <- read_cbs(file.path(loc$data_folder, loc$kind_data),
+                          filter_in = list(RINPERSOONMa = cohort_dat$RINPERSOON,
+                                           RINPERSOONpa = cohort_dat$RINPERSOON),
+                          match = "any") %>%
+  select(-XKOPPELNUMMER) %>%
   as_factor(only_labelled = TRUE, levels = "values") %>%
   filter((RINPERSOONMa %in% cohort_dat$RINPERSOON | RINPERSOONpa %in% cohort_dat$RINPERSOON),
          RINPERSOONS == "R", RINPERSOONSMa == "R", RINPERSOONSpa == "R") %>%
@@ -269,8 +285,11 @@ kindouder_dat <- read_sav(file.path(loc$data_folder, loc$kind_data),
 # voormalig birth_dat, changed to gba_dat to match cohort creation 
 gba_path <- file.path(loc$data_folder, loc$gba_dat)
 gba_dat <-
-  read_sav(gba_path, col_select = c("RINPERSOONS", "RINPERSOON", "GBAGEBOORTEJAAR",
-                                    "GBAGEBOORTEMAAND", "GBAGEBOORTEDAG")) %>%
+  # [SQL] only the infants and their parents (gba_dat is only joined on those three ids)
+  read_cbs(gba_path, cols = c("RINPERSOONS", "RINPERSOON", "GBAGEBOORTEJAAR",
+                              "GBAGEBOORTEMAAND", "GBAGEBOORTEDAG"),
+           filter_in = list(RINPERSOON = c(kindouder_dat$RINPERSOON_infant,
+                                           kindouder_dat$RINPERSOONMa, kindouder_dat$RINPERSOONpa))) %>%
   mutate(RINPERSOONS = as_factor(RINPERSOONS, levels = "values"),
          birthdate = dmy(paste(GBAGEBOORTEDAG, GBAGEBOORTEMAAND, GBAGEBOORTEJAAR, sep = "-"))) %>%
   select(-c(GBAGEBOORTEJAAR, GBAGEBOORTEMAAND, GBAGEBOORTEDAG))

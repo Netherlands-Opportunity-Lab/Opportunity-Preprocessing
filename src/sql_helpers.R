@@ -1,4 +1,4 @@
-# Kansenkaart data preparation pipeline -- SQLite experiment
+# Kansenkaart data preparation pipeline -- SQLite helpers
 #
 # Helper functions to read converted CBS microdata (.db, SQLite) instead of .sav.
 #

@@ -3,6 +3,13 @@
 # 3. Outcome creation.
 #   - Adding high school education outcomes to the cohort.
 #
+# SQLite version: the files that are available as converted .db (GBAPERSOON,
+# GBAADRESOBJECT, KINDOUDER, GBAHUISHOUDENS, VSLPOSTCODE, VSLGWB, LEVCYCLWOONNIETWOON,
+# SECMBUS) are read with read_cbs() (src/sql_helpers.R): only the rows
+# that are needed leave the database. If the config still points to a .sav, read_cbs()
+# reads it with read_sav() and applies the same filter in R. All other files are read
+# with read_sav(), exactly as before. Changes are marked with [SQL].
+#
 # (c) ODISSEI Social Data Science team 2025
 
 
@@ -28,7 +35,9 @@ cohort_dat <- cohort_dat %>%
 
 # We only include children who live continuously in the Netherlands 
 # children are only allowed to live up to 31 days not in the netherlands
-adres_tab <- read_sav(file.path(loc$data_folder, loc$gbaao_data)) %>%
+# [SQL] the children filter below is now also done inside SQLite
+adres_tab <- read_cbs(file.path(loc$data_folder, loc$gbaao_data),
+                      filter_in = list(RINPERSOON = cohort_dat$RINPERSOON)) %>%
   # select only children
   filter(RINPERSOON %in% cohort_dat$RINPERSOON) %>% 
   mutate(
@@ -302,7 +311,10 @@ cohort_dat <-
   mutate(youth_protection = ifelse(is.na(youth_protection), 0, youth_protection))
 
 ## update address of kids under child protection ##
-adres_tab <- read_sav(file.path(loc$data_folder, loc$gbaao_data)) %>%
+# [SQL] only addresses of the children and their mothers: adres_tab is used below for the
+#       mothers of children under youth protection and (LIVING SPACE) for the children
+adres_tab <- read_cbs(file.path(loc$data_folder, loc$gbaao_data),
+                      filter_in = list(RINPERSOON = c(cohort_dat$RINPERSOON, cohort_dat$RINPERSOONMa))) %>%
   mutate(
     RINPERSOONS = as_factor(RINPERSOONS, levels = "values"),
     SOORTOBJECTNUMMER = as_factor(SOORTOBJECTNUMMER, levels = "values"),
@@ -327,7 +339,8 @@ birth_adres <- adres_tab %>%
   rename("RINPERSOON" = "RINPERSOON_kind")
 
 vslpc_path <- file.path(loc$data_folder, loc$postcode_data)
-vslpc_tab  <- read_sav(vslpc_path) %>%
+# [SQL] only the dwellings we link below (the mothers' homes in birth_adres)
+vslpc_tab  <- read_cbs(vslpc_path, filter_in = list(RINOBJECTNUMMER = birth_adres$childhood_home)) %>%
   mutate(
     SOORTOBJECTNUMMER = as_factor(SOORTOBJECTNUMMER, levels = "values"),
     DATUMAANVPOSTCODENUMADRES = ymd(DATUMAANVPOSTCODENUMADRES),
@@ -350,7 +363,12 @@ birth_adres <- inner_join(birth_adres, vslpc_tab,
 
 # add region/neighbourhood codes to the group of kids under youth protection 
 vslgwb_path <- file.path(loc$data_folder, loc$vslgwb_data) 
-vslgwb_tab  <- read_sav(vslgwb_path) %>%
+# [SQL] only the columns used below, and only the dwellings we link below
+vslgwb_tab  <- read_cbs(vslgwb_path,
+                        cols = c("SOORTOBJECTNUMMER", "RINOBJECTNUMMER",
+                                 paste0("gem", year(dmy(cfg$gwb_target_date))),
+                                 paste0("wc", year(dmy(cfg$gwb_target_date)))),
+                        filter_in = list(RINOBJECTNUMMER = birth_adres$childhood_home)) %>%
   mutate(SOORTOBJECTNUMMER = as_factor(SOORTOBJECTNUMMER, levels = "values"))
 
 # select region/neighbourhood from the target date
@@ -442,9 +460,11 @@ rm(adres_tab)
 # LIVING SPACE 
 
 woon_dat <-
-  read_sav(file.path(loc$data_folder, loc$woon_data),
-           col_select = c("SOORTOBJECTNUMMER", "RINOBJECTNUMMER", "VBOOPPERVLAKTE", 
-                          "AANVLEVCYCLWOONNIETWOON", "EINDLEVCYCLWOONNIETWOON")) %>%
+  # [SQL] only the dwellings of the cohort (woon_dat is only joined to those)
+  read_cbs(file.path(loc$data_folder, loc$woon_data),
+           cols = c("SOORTOBJECTNUMMER", "RINOBJECTNUMMER", "VBOOPPERVLAKTE", 
+                    "AANVLEVCYCLWOONNIETWOON", "EINDLEVCYCLWOONNIETWOON"),
+           filter_in = list(RINOBJECTNUMMER = cohort_dat$RINOBJECTNUMMER)) %>%
   mutate(SOORTOBJECTNUMMER = as_factor(SOORTOBJECTNUMMER, levels = "values"), 
          AANVLEVCYCLWOONNIETWOON = ymd(AANVLEVCYCLWOONNIETWOON), 
          EINDLEVCYCLWOONNIETWOON = ifelse(EINDLEVCYCLWOONNIETWOON == "88888888",

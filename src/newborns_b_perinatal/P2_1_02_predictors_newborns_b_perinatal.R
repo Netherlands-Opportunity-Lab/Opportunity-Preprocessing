@@ -5,6 +5,12 @@
 #    - Adding migration background information to the cohort.
 #    - Writing `scratch/02_predictor.rds`
 #
+# SQLite version: the files that are available as converted .db (GBAPERSOON,
+# GBAADRESOBJECT, KINDOUDER, GBAHUISHOUDENS, VSLPOSTCODE, VSLGWB, LEVCYCLWOONNIETWOON)
+# are read with read_cbs() (src/sql_helpers.R): only the rows that are
+# needed leave the database. All other files are still read with read_sav(), exactly
+# as before. Changes are marked with [SQL].
+#
 # (c) ODISSEI Social Data Science team 2024
 
 
@@ -406,8 +412,10 @@ cohort_dat <-
 # import gba for mothers generation and origin
 gba_path <- file.path(loc$data_folder, loc$gba_data)
 gba_dat <-  
-  read_sav(gba_path, col_select = c("RINPERSOONS", "RINPERSOON",
-                                    "GBAGENERATIE", "GBAHERKOMSTGROEPERING")) %>% 
+  # [SQL] only the mothers (gba_dat is only left-joined on the mother ids)
+  read_cbs(gba_path, cols = c("RINPERSOONS", "RINPERSOON",
+                              "GBAGENERATIE", "GBAHERKOMSTGROEPERING"),
+           filter_in = list(RINPERSOON = cohort_dat$Rinpersoon_Moeder)) %>% 
   mutate(RINPERSOONS  = as_factor(RINPERSOONS,  levels = "values"),
          GBAGENERATIE = as_factor(GBAGENERATIE, levels = "label"),
          GBAHERKOMSTGROEPERING = as_factor(GBAHERKOMSTGROEPERING, levels = "labels"))
@@ -505,9 +513,11 @@ cohort_rinpersoons <-
 
 # import household  data
 household_dat <-
-  read_sav(file.path(loc$data_folder, loc$household_data),
-           col_select = c("RINPERSOONS", "RINPERSOON", "DATUMAANVANGHH",
-                          "DATUMEINDEHH", "TYPHH")) %>%
+  # [SQL] the filter below is now also done inside SQLite (same ids)
+  read_cbs(file.path(loc$data_folder, loc$household_data),
+           cols = c("RINPERSOONS", "RINPERSOON", "DATUMAANVANGHH",
+                    "DATUMEINDEHH", "TYPHH"),
+           filter_in = list(RINPERSOON = cohort_rinpersoons)) %>%
   filter(RINPERSOON %in% cohort_rinpersoons) %>%
   mutate(
     RINPERSOONS = as_factor(RINPERSOONS, levels = "value"),

@@ -6,6 +6,10 @@
 #   - Adding postal code / region information to the cohort.
 #   - Writing `scratch/01_cohort.rds`.
 #
+# SQLite version: reads the converted .db files via read_cbs() (src/sql_helpers.R)
+# instead of read_sav(). Only the rows that are needed leave the database; all
+# processing after the read is unchanged. Changes are marked with [SQL].
+#
 # (c) ODISSEI Social Data Science team 2026
 
 
@@ -19,20 +23,35 @@ library(dplyr)
 
 #### SELECT COHORT FROM GBA ####
 gba_path <- file.path(loc$data_folder, loc$gba_data)
-gba_dat <-  
-  read_sav(gba_path, col_select = c("RINPERSOONS", "RINPERSOON", "GBAGESLACHT", 
-                                    "GBAGEBOORTEJAAR", "GBAGEBOORTEMAAND", "GBAGEBOORTEDAG", "GBAGENERATIE", "GBAHERKOMSTGROEPERING",
-                                    #add parents birth country for adding foreign born parents outcome later 
-                                    "GBAGEBOORTELANDMOEDER", "GBAGEBOORTELANDVADER")) %>% 
-  mutate(birthdate = dmy(paste(GBAGEBOORTEDAG, GBAGEBOORTEMAAND, GBAGEBOORTEJAAR, sep = "-"))) %>% 
-  select(-GBAGEBOORTEJAAR, -GBAGEBOORTEMAAND, -GBAGEBOORTEDAG) %>%
-  mutate(RINPERSOONS = haven::as_factor(RINPERSOONS, levels = "values"),
-         GBAHERKOMSTGROEPERING = haven::as_factor(GBAHERKOMSTGROEPERING, levels = "labels"),
-         GBAGENERATIE = haven::as_factor(GBAGENERATIE, levels = "labels"),
-         GBAGESLACHT = haven::as_factor(GBAGESLACHT, levels = "labels")) %>%
-  mutate(GBAGESLACHT = as.factor(as.character(GBAGESLACHT))) %>%
-  rename(sex = GBAGESLACHT) %>%
-  mutate(sex = recode(sex, 'Mannen' = 'Men', 'Vrouwen' = 'Women'))
+
+# [SQL] the same cleaning as before, now in a function because GBA is read twice:
+#       once for the (class) cohort, once for the parents (see AGE PARENTS AT BIRTH)
+prep_gba <- function(dat) {
+  dat %>%
+    mutate(birthdate = dmy(paste(GBAGEBOORTEDAG, GBAGEBOORTEMAAND, GBAGEBOORTEJAAR, sep = "-"))) %>%
+    select(-GBAGEBOORTEJAAR, -GBAGEBOORTEMAAND, -GBAGEBOORTEDAG) %>%
+    mutate(RINPERSOONS = haven::as_factor(RINPERSOONS, levels = "values"),
+           GBAHERKOMSTGROEPERING = haven::as_factor(GBAHERKOMSTGROEPERING, levels = "labels"),
+           GBAGENERATIE = haven::as_factor(GBAGENERATIE, levels = "labels"),
+           GBAGESLACHT = haven::as_factor(GBAGESLACHT, levels = "labels")) %>%
+    mutate(GBAGESLACHT = as.factor(as.character(GBAGESLACHT))) %>%
+    rename(sex = GBAGESLACHT) %>%
+    mutate(sex = recode(sex, 'Mannen' = 'Men', 'Vrouwen' = 'Women'))
+}
+
+gba_cols <- c("RINPERSOONS", "RINPERSOON", "GBAGESLACHT",
+              "GBAGEBOORTEJAAR", "GBAGEBOORTEMAAND", "GBAGEBOORTEDAG", "GBAGENERATIE", "GBAHERKOMSTGROEPERING",
+              #add parents birth country for adding foreign born parents outcome later
+              "GBAGEBOORTELANDMOEDER", "GBAGEBOORTELANDVADER")
+
+# [SQL] only read people born in the years of the (class) cohort window; the exact
+#       date filter below is unchanged. The year range is a superset of the window.
+cohort_years <- seq(year(dmy(cfg$child_birth_date_min) - years(2)),
+                    year(dmy(cfg$child_birth_date_max) + years(2)))
+gba_dat <-
+  read_cbs(gba_path, cols = gba_cols,
+          filter_in = list(GBAGEBOORTEJAAR = cohort_years)) %>%
+  prep_gba()
 
 
 # to calculate classroom composition later, we construct a larger classroom sample with potential classmates of children in our cohort
@@ -52,7 +71,9 @@ sample_size <- tibble(
 kindouder_path <- file.path(loc$data_folder, loc$kind_data)
 cohort_dat <- inner_join(
   x = cohort_dat, 
-  y = read_sav(kindouder_path) %>% select(-(XKOPPELNUMMER)) %>% 
+  # [SQL] only the children in the cohort (the inner join drops all others anyway)
+  y = read_cbs(kindouder_path, filter_in = list(RINPERSOON = cohort_dat$RINPERSOON)) %>%
+    select(-(XKOPPELNUMMER)) %>%
     haven::as_factor(only_labelled = TRUE, levels = "values"),
   by = c("RINPERSOONS", "RINPERSOON")
 )
@@ -65,6 +86,13 @@ sample_size <- sample_size %>%
 
 
 #### AGE PARENTS AT BIRTH ####
+
+# [SQL] gba_dat only holds the cohort birth years, so read the parents separately
+#       (same filter as before: RINPERSOON in mothers or fathers)
+gba_dat <-
+  read_cbs(gba_path, cols = gba_cols,
+          filter_in = list(RINPERSOON = c(cohort_dat$RINPERSOONMa, cohort_dat$RINPERSOONpa))) %>%
+  prep_gba()
 
 parents_age <-
   gba_dat %>%
@@ -99,7 +127,10 @@ rm(parents_age, gba_dat)
 
 # find childhood home
 adres_path <- file.path(loc$data_folder, loc$gbaao_data)
-adres_tab  <- read_sav(adres_path) %>% 
+# [SQL] only addresses of the cohort children and their mothers: these are the only
+#       two filters applied to adres_tab below (childhood home, home at birth)
+adres_tab  <- read_cbs(adres_path,
+                      filter_in = list(RINPERSOON = c(cohort_dat$RINPERSOON, cohort_dat$RINPERSOONMa))) %>%
   haven::as_factor(only_labelled = TRUE, levels = "values") %>%
   mutate(
     GBADATUMAANVANGADRESHOUDING = ymd(GBADATUMAANVANGADRESHOUDING),
@@ -140,7 +171,8 @@ rm(home_tab, age_tab)
 
 # clean the postcode table
 vslpc_path <- file.path(loc$data_folder, loc$postcode_data)
-vslpc_tab  <- read_sav(vslpc_path) %>%
+# [SQL] only the dwellings that occur in adres_tab (all homes we link below come from there)
+vslpc_tab  <- read_cbs(vslpc_path, filter_in = list(RINOBJECTNUMMER = adres_tab$RINOBJECTNUMMER)) %>%
   mutate(
     SOORTOBJECTNUMMER = haven::as_factor(SOORTOBJECTNUMMER, levels = "values"),
     DATUMAANVPOSTCODENUMADRES = ymd(DATUMAANVPOSTCODENUMADRES),
@@ -165,7 +197,12 @@ cohort_dat <- inner_join(cohort_dat, vslpc_tab,
 
 # add region/neighbourhood codes to cohort
 vslgwb_path <- file.path(loc$data_folder, loc$vslgwb_data) 
-vslgwb_tab  <- read_sav(vslgwb_path) %>%
+# [SQL] only the columns used below, and only the dwellings that occur in adres_tab
+vslgwb_tab  <- read_cbs(vslgwb_path,
+                       cols = c("SOORTOBJECTNUMMER", "RINOBJECTNUMMER",
+                                paste0("gem", year(dmy(cfg$gwb_target_date))),
+                                paste0("wc", year(dmy(cfg$gwb_target_date)))),
+                       filter_in = list(RINOBJECTNUMMER = adres_tab$RINOBJECTNUMMER)) %>%
   mutate(SOORTOBJECTNUMMER = haven::as_factor(SOORTOBJECTNUMMER, levels = "values"))
 
 # select region/neighbourhood from the target date

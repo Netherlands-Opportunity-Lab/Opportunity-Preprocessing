@@ -1,7 +1,7 @@
 """
-Convert CBS .sav files to SQLite (.db) for the SQLite experiment (sqlexperiment/).
+Convert CBS .sav files to SQLite (.db) for the preprocessing pipeline (see README.md here).
 
-Each .db gets the format that read_db() / read_cbs() in sqlexperiment/src/sql_helpers.R
+Each .db gets the format that read_db() / read_cbs() in src/sql_helpers.R
 expect:
   - one data table, named after the file (e.g. POLISBUS2006V3), with the same variables
     and rows, in the same order, as the .sav
