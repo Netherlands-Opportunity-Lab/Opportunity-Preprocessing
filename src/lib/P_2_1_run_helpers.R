@@ -1,9 +1,9 @@
-# Kansenkaart data preparation pipeline -- helpers for running the pipeline
+# Helpers for running a pipeline (the same file in all Opportunity Lab repos: keep them identical)
 #
 #   find_versioned()    find a script or config by its name, with or without the
-#                       version prefix (P_2_0_, P_2_1_, ...). The prefixes only
-#                       exist outside the CBS RA, so code that looks files up by
-#                       name must accept both.
+#                       version prefix (P_2_1_, A_2_0_I1_, A_2_0_M1_, ...). The
+#                       prefixes only exist outside the CBS RA, so code that looks
+#                       files up by name must accept both.
 #   source_versioned()  source such a script into the global environment
 #   start_run_log() / log_line() / finish_run_log()
 #                       a plain-text log per run: git commit, R version and
@@ -13,7 +13,7 @@
 
 
 find_versioned <- function(dir, name, ext = "R") {
-  pattern <- paste0("^(P_?[0-9]+_[0-9]+_)?", name, "\\.", ext, "$")
+  pattern <- paste0("^([A-Z]_?[0-9]+_[0-9]+_([A-Z][0-9]+_)?)?", name, "\\.", ext, "$")
   hits <- list.files(dir, pattern = pattern, full.names = TRUE, ignore.case = TRUE)
   if (length(hits) != 1) {
     stop("Expected exactly one file '", name, ".", ext, "' (optionally with a version prefix) in ",

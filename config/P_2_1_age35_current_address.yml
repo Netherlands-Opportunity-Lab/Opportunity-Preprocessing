@@ -1,0 +1,52 @@
+# The age35 sample with regions at the address at age 35 and the Amsterdam
+# areas: the input of Opportunity-Analysis-Intragenerational. Starts from the
+# output of the age35 sample, so run age35 first.
+default:
+  data_preparation:
+    # The name of the cohort
+    cohort_name: "age35_current_address"
+    # The sample it starts from (output/<base_cohort>_cohort.rds)
+    base_cohort: "age35"
+
+    # take the address registration at this age
+    current_home_age: 35
+
+    # Postal code link to homes will be considered on this target date
+    postcode_target_date: "31/12/2025"
+    # Neighbourhood geo link to homes will be considered on this target date
+    gwb_target_date: "31/12/2025"
+    # Corop geo link to homes will be considered on this target date
+    corop_target_date: "31/12/2025"
+
+    # Municipalities of the Amsterdam Metropolitan Area (2024 codes)
+    amsterdam_metropolitan_area: ["0358", "0034", "0362", "0363", "0375", "0852", "0376",
+                                  "0377", "0384", "0385", "1942", "0392", "0394", "0396",
+                                  "0397", "0402", "0406", "0415", "0417", "0995", "0431",
+                                  "0437", "0439", "0450", "0451", "0453", "1696", "0880",
+                                  "0479", "0473"]
+
+  file_locations:
+    # The data folder is the root folder of the cbs microdata tables
+    data_folder: "G:/"
+    # Intermediate files of this sample
+    temp_folder: "temp/age35_current_address"
+    # The final cohort file (<cohort>_cohort.rds) is written here; the age35
+    # cohort file is read from here too
+    output_folder: "output"
+
+    # path to the cbs microdata (the versions the intragenerational analysis used)
+    gbaao_data: "Bevolking/GBAADRESOBJECTBUS/GBAADRESOBJECT2024BUSV1.sav"
+    postcode_data: "BouwenWonen/VSLPOSTCODEBUS/VSLPOSTCODEBUSV2025031.sav"
+    vslgwb_data: "BouwenWonen/VSLGWBTAB/VSLGWB2025TAB03V1.sav"
+
+    # resources
+    corop_data: "K:/Utilities/HULPbestanden/GebiedeninNederland/GIN"
+    # Amsterdam stadsdelen, gebieden and wijken (was Data/Help in the
+    # intragenerational repository in the RA; copy it here)
+    amsterdam_areas: "resources/import_amsterdam_areas.xlsx"
+
+  pipeline:
+    # The scripts that P_2_1_run_all.R runs for this cohort, in this order. Names
+    # without the version prefix (P_2_0_, P_2_1_), which only exists outside the RA.
+    script_dir: "src/age35_current_address"
+    scripts: ["01_current_address_age35"]

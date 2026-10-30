@@ -10,6 +10,9 @@ test_that("find_versioned finds files with and without a version prefix", {
   expect_match(find_versioned(d, "02_predictors_x"), "02_predictors_x.R$")
   expect_match(find_versioned(d, "03_outcomes_x"), "P2_1_03_outcomes_x.R$")
   expect_error(find_versioned(d, "04_missing"), "found 0")
+  file.create(file.path(d, c("A_2_0_I1_outcome_options.R", "A_2_0_M1_02_create_grid.R")))
+  expect_match(find_versioned(d, "outcome_options"), "A_2_0_I1_outcome_options.R$")
+  expect_match(find_versioned(d, "02_create_grid"), "A_2_0_M1_02_create_grid.R$")
 })
 
 configs <- list.files(file.path(root, "config"), "\\.yml$", full.names = TRUE)

@@ -360,6 +360,8 @@ Rscript P_2_1_run_all.R jgz                # the JGZ preprocessing (project 8151
 
 Samples: `newborns_a_perinatal`, `newborns_b_perinatal`, `newborns_a_mortality`, `newborns_b_mortality`, `prim8_a`, `prim8_b`, `age16`, `age21`, `age35` and `jgz`.
 
+`age35_current_address` is derived from `age35` (run that first): the same people with their regions at the address at age 35, the Amsterdam stadsdelen and gebieden, and the categorical outcomes of the intragenerational analysis, for which it is the input. It needs `resources/import_amsterdam_areas.xlsx` (in the RA: copy it from the intragenerational `Data/Help` folder).
+
 Each sample runs in its own R process with its configuration, `config/<sample>.yml` (as named in the CBS RA) or `config/P_2_<version>_<sample>.yml` (with the version prefix, as in this repository). The `pipeline` section of that file lists the scripts to run. To rerun only some steps of one sample: `Rscript src/lib/P_2_1_run_cohort.R age35 03 04`.
 
 After every step the pipeline checks that the cohort data has exactly one row per person (non-missing, unique `RINPERSOONS` + `RINPERSOON`) and stops with a message if not. Every run writes a log to `output/logs/` with the git commit, the configuration, the R and package versions and the time per step.
