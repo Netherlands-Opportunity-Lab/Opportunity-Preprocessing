@@ -12,7 +12,7 @@ microdata instead of `.sav`, without changing the results.
 | `src/<cohort>/*.R` | the four scripts per cohort; only the reads of converted files changed (marked `[SQL]`) |
 | `run_experiment.R` | runs the `sav` or `sql` variant of one cohort and logs time and memory per script |
 | `compare_experiment.R` | checks that both variants produce identical scratch files (prints counts only) |
-| `convert_sav_to_db.R` | converts a `.sav` to a `.db` in the format `read_db()` expects (e.g. for SECMBUS) |
+| `../convert_files_to_sqlite/savtosqlite.py` | converts `.sav` files to `.db` in the format `read_db()` expects, with an index on RINPERSOON / RINOBJECTNUMMER (Python, pyreadstat) |
 
 Cohorts: `prim8_a`, `prim8_b`, `newborns_a_mortality`, `newborns_a_perinatal`,
 `newborns_b_mortality`, `newborns_b_perinatal`, `age16`, `age21`, `age35`.
@@ -31,7 +31,7 @@ then `Rscript sqlexperiment/compare_experiment.R age35`.
 
 Converted so far: GBAPERSOON2024TABV3, GBAADRESOBJECT2024BUSV1, KINDOUDER2025TABV2,
 GBAHUISHOUDENS2024BUSV1, VSLPOSTCODEBUSV2026031, VSLGWB2025TAB03V1,
-LEVCYCLWOONNIETWOONBUSV2025123, and SECMBUS2024V1 (age35).
+LEVCYCLWOONNIETWOONBUSV2025123, and for age35 SECMBUS2024V1 and SPOLISBUS (per year).
 
 The age cohorts use older versions of three of these files. Those stay `.sav` in the sql
 configs, so that both variants read exactly the same data:
@@ -42,7 +42,7 @@ configs, so that both variants read exactly the same data:
 | newborns (all four) | GBAPERSOON, GBAADRESOBJECT, KINDOUDER, GBAHUISHOUDENS, VSLPOSTCODE, VSLGWB | – |
 | age16 | GBAPERSOON, GBAADRESOBJECT, GBAHUISHOUDENS, VSLGWB | KINDOUDER2024TABV1, VSLPOSTCODEBUSV2025031, LEVCYCLWOONNIETWOONBUSV2024122 |
 | age21 | GBAPERSOON, GBAADRESOBJECT, GBAHUISHOUDENS, VSLGWB | KINDOUDER2024TABV1, VSLPOSTCODEBUSV2025031 |
-| age35 | GBAPERSOON (02 only), GBAADRESOBJECT, GBAHUISHOUDENS, VSLGWB, **SECMBUS** | KINDOUDER2024TABV1, VSLPOSTCODEBUSV2025031, LEVCYCLWOONNIETWOONBUSV2024122, GBAPERSOON2018TABV2 (hard-coded in 01) |
+| age35 | GBAPERSOON (02 only), GBAADRESOBJECT, GBAHUISHOUDENS, VSLGWB, **SECMBUS**, **SPOLISBUS** (each year that has a `.db`) | KINDOUDER2024TABV1, VSLPOSTCODEBUSV2025031, LEVCYCLWOONNIETWOONBUSV2024122, GBAPERSOON2018TABV2 (hard-coded in 01) |
 
 All reads of these files go through `read_cbs()`, which looks at the path in the config:
 `.db` → filtered inside SQLite; `.sav` → `read_sav()` plus the same filter in R. So moving
@@ -50,7 +50,7 @@ a cohort to a newer (converted) version, or converting one of the older versions
 config change only. (Moving to a newer version does change the results, also for the
 `sav` pipeline; that is a separate decision.)
 
-All yearly files (IPI/INPA, IHI/INHA, VEH, KOPPELTABEL, HOOGSTEOPL, INSCHRWPO, SPOLIS,
+All other yearly files (IPI/INPA, IHI/INHA, VEH, KOPPELTABEL, HOOGSTEOPL, INSCHRWPO,
 ZVWZORGKOSTEN, JGDBESCHERM, EIGENDOM, SCH, DO/DOODOORZ/GBAOVERLIJDEN) and the reference
 files on K: are still read with `read_sav()`, with the original code.
 
@@ -59,8 +59,16 @@ files on K: are still read with `read_sav()`, with the original code.
 The sql config expects `InkomenBestedingen/SECMBUS/geconverteerde data/SECMBUS2024V1.db`.
 Until CBS has moved your converted file there, set `secm_data` in
 `sqlexperiment/config/P_2_0_age35.yml` to its full path (e.g. `H:/.../SECMBUS2024V1.db`);
-`cbs_path()` accepts both. Convert it with `convert_sav_to_db.R` so it has the
-`value_labels` table (see below).
+`cbs_path()` accepts both. Convert it with `convert_files_to_sqlite/savtosqlite.py` so it
+has the `value_labels` table and the RINPERSOON index (see below).
+
+### SPOLISBUS (age35)
+
+For each year, step 03 first looks for a `.db` with exactly the name of the latest
+`SPOLISBUS<year>V<n>.sav` (so the same version): in `spolis_db_folder` from the sql config
+(e.g. the folder on H: where `savtosqlite.py` wrote them), then in `Spolis/SPOLISBUS/geconverteerde data`.
+Years without such a `.db` are read from the `.sav`, so you can convert year by year.
+No script in the Opportunity Lab repos reads POLISBUS (the files before SPOLIS).
 
 ## How `read_cbs()` / `read_db()` work
 
@@ -88,13 +96,13 @@ Until CBS has moved your converted file there, set `secm_data` in
 - **The `value_labels` table is needed.** Without it the columns come back unlabelled,
   and `as_factor(x, levels = "values")` then gives other factors (newer haven versions
   even stop with an error). `read_db()` warns when the table is missing.
-  `convert_sav_to_db.R` writes this format.
+  `convert_files_to_sqlite/savtosqlite.py` writes this format.
 
 ## Tested
 
 On the synthetic data (`werkeur/concept/mock_data/synthetic`), with the eight files above
-converted with `convert_sav_to_db.R` (a full `read_db()` of each `.db` is identical to
-`read_sav()`), and the RA folder layout (`G:/`, `K:/`, `resources/`) mimicked: for all nine
+converted with `savtosqlite.py` (a full `read_db()` of each `.db` is identical to
+`read_sav()`; SPOLISBUS 2020–2024 included), and the RA folder layout (`G:/`, `K:/`, `resources/`) mimicked: for all nine
 cohorts every scratch file of the `sql` variant is identical to the `sav` variant
 (values, row order, column types, factor levels). The timings on the synthetic data say
 little (the files are tiny); the real test is the run in the RA.

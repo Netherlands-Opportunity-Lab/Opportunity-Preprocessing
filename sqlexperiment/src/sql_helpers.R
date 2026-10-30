@@ -140,7 +140,7 @@ read_db <- function(path, cols = NULL, filter_in = NULL, numeric = NULL, labels 
   if (labels && !"value_labels" %in% dbListTables(con)) {
     warning("No `value_labels` table in ", basename(path), ": columns come back without value labels, ",
             "so as_factor() calls may give other results than with read_sav(). ",
-            "See sqlexperiment/convert_sav_to_db.R for the expected format.", call. = FALSE)
+            "See convert_files_to_sqlite/savtosqlite.py for the expected format.", call. = FALSE)
   }
   if (labels && "value_labels" %in% dbListTables(con)) {
     lab <- dbReadTable(con, "value_labels")

@@ -84,7 +84,11 @@ default:
     postcode_data: "BouwenWonen/VSLPOSTCODEBUS/VSLPOSTCODEBUSV2025031.sav"
     vslgwb_data: "BouwenWonen/VSLGWBTAB/geconverteerde data/VSLGWB2025TAB03V1.db"
     household_data: "Bevolking/GBAHUISHOUDENSBUS/geconverteerde data/GBAHUISHOUDENS2024BUSV1.db"
-    # SECMBUS: converted with sqlexperiment/convert_sav_to_db.R. Until CBS has moved it to
+    # SPOLISBUS (yearly): folder with your converted SPOLISBUS<year>V<n>.db files, made with
+    # convert_files_to_sqlite/savtosqlite.py. Leave empty to only look in 'geconverteerde data'
+    # next to the .sav. Years without a .db of the same version are read from the .sav.
+    spolis_db_folder: ""
+    # SECMBUS: converted with convert_files_to_sqlite/savtosqlite.py. Until CBS has moved it to
     # 'geconverteerde data', put the full path here (e.g. "H:/.../SECMBUS2024V1.db"); the
     # .SAV path also works (then read_cbs() falls back to read_sav()).
     secm_data: "InkomenBestedingen/SECMBUS/geconverteerde data/SECMBUS2024V1.db"

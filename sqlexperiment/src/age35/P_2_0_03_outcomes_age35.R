@@ -641,7 +641,20 @@ get_spolis_filename <- function(year) {
     full.names = TRUE
   )
   # return only the latest version
-  sort(fl, decreasing = TRUE)[1]
+  sav <- sort(fl, decreasing = TRUE)[1]
+
+  # [SQL] use the converted .db of exactly this file (same name, so the same version) if it
+  #       exists: first in spolis_db_folder from the config (e.g. your own converted files
+  #       on H:), then in 'geconverteerde data' next to the .sav. Otherwise the .sav as before.
+  db_dirs <- file.path(loc$data_folder, "Spolis/SPOLISBUS", "geconverteerde data")
+  if (!is.null(loc$spolis_db_folder) && nzchar(loc$spolis_db_folder)) {
+    db_dirs <- c(cbs_path(loc, "spolis_db_folder"), db_dirs)
+  }
+  for (d in db_dirs) {
+    db <- file.path(d, paste0(tools::file_path_sans_ext(basename(sav)), ".db"))
+    if (file.exists(db)) return(db)
+  }
+  sav
 }
 
 # create dataframe with all spolis entries for selected years
@@ -657,9 +670,14 @@ spolis_tab <- tibble(
 for (year in seq(as.integer(cfg$child_outcome_year_min), as.integer(cfg$child_outcome_year_max))) {
   spolis_tab <-
     # read file from disk
-    read_sav(get_spolis_filename(year),
-             col_select = c("RINPERSOONS", "RINPERSOON", "SBASISLOON",
-                            "SBASISUREN", "SCONTRACTSOORT")) %>%
+    # [SQL] only the children in the cohort (the filter below), now done when reading.
+    #       Note: as_factor(contract_type) is now built from the cohort's rows only; that
+    #       gives the same factor as before as long as all SCONTRACTSOORT values have a label.
+    read_cbs(get_spolis_filename(year),
+             cols = c("RINPERSOONS", "RINPERSOON", "SBASISLOON",
+                      "SBASISUREN", "SCONTRACTSOORT"),
+             filter_in = list(RINPERSOON = cohort_dat$RINPERSOON),
+             numeric = c("SBASISLOON", "SBASISUREN")) %>%
     # add year
     mutate(year = year) %>%
     rename(
