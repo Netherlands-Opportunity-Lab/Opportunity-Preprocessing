@@ -227,59 +227,82 @@ rm(parents_age, gba_dat)
 
 
 #### REGION LINK ####
-# find childhood home
+# The region of every child (live birth or stillbirth) is the mother's address on
+# the date of birth. The child's own first known address is only a fallback, for
+# children whose mother has no address on that date in GBAADRESOBJECT.
+# (Until Nov 2026 this was the other way round: the child's first known address,
+# and the mother's address only for children without an address of their own.)
 adres_path <- file.path(loc$data_folder, loc$gbaao_data)
 # [SQL] only addresses of the children and their mothers: these are the only two
-#       filters applied to adres_tab below (childhood home, mother's home at birth)
-adres_tab <- read_cbs(adres_path, 
-                      filter_in = list(RINPERSOON = c(cohort_dat$RINPERSOON, cohort_dat$RINPERSOONMa))) %>%
+#       filters applied to adres_tab below (mother's home at birth, child's first home).
+#       Rinpersoon_Moeder is the mother id we link on below (Perined, completed
+#       with KINDOUDER above), so filter on that one.
+adres_tab <- read_cbs(adres_path,
+                      filter_in = list(RINPERSOON = c(cohort_dat$RINPERSOON, cohort_dat$Rinpersoon_Moeder))) %>%
   as_factor(only_labelled = TRUE, levels = "values") %>%
   mutate(GBADATUMAANVANGADRESHOUDING = ymd(GBADATUMAANVANGADRESHOUDING),
          GBADATUMEINDEADRESHOUDING = ymd(GBADATUMEINDEADRESHOUDING))
 
-# keep earliest known address that we observe for the child
-home_tab_child <- 
-  adres_tab %>% filter(RINPERSOON %in% cohort_dat$RINPERSOON) %>%
-  group_by(RINPERSOONS, RINPERSOON) %>%
-  summarize(childhood_home = RINOBJECTNUMMER[1],
-            type_childhood_home = SOORTOBJECTNUMMER[1])
-
-# keep address of mom at date of birth for stillbirths
-home_tab_mom <- 
-  inner_join(adres_tab %>% filter(RINPERSOON %in% cohort_dat$RINPERSOONMa), 
-             cohort_dat %>% select(c(CBKSoortNr_Moeder, Rinpersoon_Moeder, birthdate)), 
+# address of the mother on the date of birth (main address).
+# - Per mother AND birth date: a mother can have more than one child in the cohort,
+#   and each child gets the address at its own birth date.
+# - If the birth date falls in two address periods (a move on the day of birth),
+#   keep the address that started last, i.e. where the mother lived at the end of that day.
+home_tab_mom <-
+  inner_join(adres_tab %>% filter(RINPERSOON %in% cohort_dat$Rinpersoon_Moeder),
+             cohort_dat %>% distinct(CBKSoortNr_Moeder, Rinpersoon_Moeder, birthdate),
              by = c("RINPERSOONS" = "CBKSoortNr_Moeder",
-                    "RINPERSOON" = "Rinpersoon_Moeder"), 
+                    "RINPERSOON" = "Rinpersoon_Moeder"),
              relationship = "many-to-many") %>%
-  filter(birthdate %within% interval(GBADATUMAANVANGADRESHOUDING, 
+  filter(birthdate %within% interval(GBADATUMAANVANGADRESHOUDING,
                                      GBADATUMEINDEADRESHOUDING)) %>%
-  group_by(RINPERSOONS, RINPERSOON) %>% 
+  arrange(desc(GBADATUMAANVANGADRESHOUDING)) %>%
+  group_by(RINPERSOONS, RINPERSOON, birthdate) %>%
   summarise(mom_home = RINOBJECTNUMMER[1],
-            type_mom_home = SOORTOBJECTNUMMER[1])
-  
+            type_mom_home = SOORTOBJECTNUMMER[1],
+            .groups = "drop")
+
+# earliest known address of the child (fallback). Sort on the start date first:
+# the row order of the file (.sav or .db) is not guaranteed to be chronological.
+home_tab_child <-
+  adres_tab %>% filter(RINPERSOON %in% cohort_dat$RINPERSOON) %>%
+  arrange(GBADATUMAANVANGADRESHOUDING) %>%
+  group_by(RINPERSOONS, RINPERSOON) %>%
+  summarise(childhood_home = RINOBJECTNUMMER[1],
+            type_childhood_home = SOORTOBJECTNUMMER[1],
+            .groups = "drop")
+
+
+# join mother home address at birth
+cohort_dat <- left_join(cohort_dat, home_tab_mom,
+                        by = c("CBKSoortNr_Moeder" = "RINPERSOONS",
+                               "Rinpersoon_Moeder" = "RINPERSOON",
+                               "birthdate"))
 
 # join child home address
-cohort_dat <- left_join(cohort_dat, home_tab_child)
-
-# join mother home address for stillbirth children 
-cohort_dat <- left_join(cohort_dat, home_tab_mom, 
-                         by = c("CBKSoortNr_Moeder" = "RINPERSOONS",
-                                "Rinpersoon_Moeder" = "RINPERSOON"), 
-                         suffix = c("", "_ma"))
+cohort_dat <- left_join(cohort_dat, home_tab_child,
+                        by = c("RINPERSOONS", "RINPERSOON"))
 
 
-# replace address of stillbirth with those of the mother
+# use the mother's address at birth; the child's first address only when that is missing.
+# Address and type always come from the same source.
 cohort_dat <-
   cohort_dat %>%
   mutate(
     type_childhood_home = as.character(type_childhood_home),
     type_mom_home = as.character(type_mom_home),
-    childhood_home = ifelse(is.na(childhood_home), mom_home, childhood_home),
-    type_childhood_home = ifelse(is.na(type_childhood_home), type_mom_home, 
-                                 type_childhood_home),
-    type_childhood_home = as.factor(type_childhood_home)     
-    )  %>%
-  filter(!is.na(childhood_home))
+    childhood_home = ifelse(!is.na(mom_home), mom_home, childhood_home),
+    type_childhood_home = ifelse(!is.na(mom_home), type_mom_home, type_childhood_home),
+    type_childhood_home = as.factor(type_childhood_home)
+    )
+
+# log how many children got which address (aggregate counts, stays in the run log)
+message(sprintf("Region link: %d mother's address at birth, %d child's first address (fallback), %d no address (dropped)",
+                sum(!is.na(cohort_dat$mom_home)),
+                sum(is.na(cohort_dat$mom_home) & !is.na(cohort_dat$childhood_home)),
+                sum(is.na(cohort_dat$childhood_home))))
+
+cohort_dat <- cohort_dat %>% filter(!is.na(childhood_home))
  
 
 

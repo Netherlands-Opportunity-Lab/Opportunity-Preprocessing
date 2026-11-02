@@ -95,7 +95,7 @@ The Opportunity Map Preprocessing generates multiple samples, each defined by th
 
 | Sample | Birth Years | Outcome Age / Timing | Address Reference Age | Parental Income/Wealth Period | Parental Education Timing | Outcome Timing | Child Residency | ParentalResidency |
 |--------|--------|--------|--------|--------|--------|--------|--------|--------|
-| `newborns (perinatal and mortality)` | 2005–2014 (a), 2015–2024 (b) | At birth | First known address/mother’s address for still births | Year of birth and the year before | At birth | At birth and 365 days after birth |  | In the years parental income and wealth are measured |
+| `newborns (perinatal and mortality)` | 2005–2014 (a), 2015–2024 (b) | At birth | Mother’s address on the date of birth (child’s first known address if the mother has none) | Year of birth and the year before | At birth | At birth and 365 days after birth |  | In the years parental income and wealth are measured |
 | `prim8` | 2003–2006 (a), 2009–2012 (b) | Grade 8 (around age 12) | Age 10 | 2013–2016 (a), 2019–2022 (b) | At age 10 | In the year before taking the CITO test the last time and the year before |  | In the years parental income and wealth are measured |
 | `age16` | 2004–2008 | Age 16 | Age 15 | 2019–2023 | \- | Age 15-16 | In the years the outcomes are measured | In the years parental income and wealth are measured |
 | `age21` | 1999–2003 | Age 21 | Age 15 | 2014–2018 | \- | Age 20-21 | In the years the outcomes are measured | In the years parental income and wealth are measured |
