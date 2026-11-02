@@ -568,9 +568,9 @@ hh_tab_mom <-
 # create type household outcome for mother
 hh_tab_mom <- 
   hh_tab_mom %>%
-  mutate(type_household_mom = ifelse(TYPHH_mom %in% "6", "single parent", "Other"),
+  mutate(type_household_mom = ifelse(TYPHH_mom %in% "6", "Single Parent", "Other"),
          type_household_mom = ifelse(TYPHH_mom %in% c("2", "3", "4", "5"), 
-                              "two parents", type_household_mom)) %>%
+                              "Two Parents", type_household_mom)) %>%
   select(-c(TYPHH_mom))
 
 
