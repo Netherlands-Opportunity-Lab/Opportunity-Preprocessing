@@ -22,6 +22,7 @@
 #### WHAT TO RUN ####
 cohorts <- c("age16", "age21", "age35",
              "age35_current_address",   # needs age35 (input of the intragenerational analysis)
+             "age45_current_address", "age55_current_address",   # intragenerational, no parent link
              "prim8_a", "prim8_b",
              "newborns_a_mortality", "newborns_a_perinatal",
              "newborns_b_mortality", "newborns_b_perinatal")

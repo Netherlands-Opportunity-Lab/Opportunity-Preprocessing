@@ -100,6 +100,9 @@ The Opportunity Map Preprocessing generates multiple samples, each defined by th
 | `age16` | 2004–2008 | Age 16 | Age 15 | 2019–2023 | \- | Age 15-16 | In the years the outcomes are measured | In the years parental income and wealth are measured |
 | `age21` | 1999–2003 | Age 21 | Age 15 | 2014–2018 | \- | Age 20-21 | In the years the outcomes are measured | In the years parental income and wealth are measured |
 | `age35` | 1985–1989 | Age 34–35 | Age 15 | 2003–2007 | \- | Age 34–35 | In the years the outcomes are measured | In the years parental income and wealth are measured |
+| `age35_current_address` | 1985–1989 | Age 34–35 | Age 35 | as `age35` | \- | Age 34–35 | as `age35` | as `age35` |
+| `age45_current_address` | 1975–1979 | Age 44–45 | Age 45 | \- (no parent link) | \- | Age 44–45 | In the years the outcomes are measured | \- |
+| `age55_current_address` | 1965–1969 | Age 54–55 | Age 55 | \- (no parent link) | \- | Age 54–55 | In the years the outcomes are measured | \- |
 
 ### Samples and Outcomes
 
@@ -332,7 +335,7 @@ Approximate time needed to reproduce the analyses on a standard (2025) desktop m
 |---|---|
 | `P_2_1_run_all.R` | The one script that builds every cohort file, start to finish |
 | `config/` | One `.yml` per cohort (and `jgz.yml`): all paths, settings and the list of scripts to run. Paths are never hard-coded in scripts |
-| `src/<sample>/` | The pipeline steps. Variants that share code share scripts: `src/prim8/` serves `prim8_a` and `prim8_b`, `src/newborns/` the four newborn samples |
+| `src/<sample>/` | The pipeline steps. Variants that share code share scripts: `src/prim8/` serves `prim8_a` and `prim8_b`, `src/newborns/` the four newborn samples, `src/current_address/` (with `src/age35/03_outcomes_age35.R`) `age45_current_address` and `age55_current_address`. A script name in a config may include a folder relative to `script_dir` |
 | `src/lib/` | Shared helpers: running the pipeline and logging (`run_helpers`, `run_cohort`), key checks (`checks`), SQLite reading (`sql_helpers`), diagnostics (`function_kansenkaart_preprocessing`) |
 | `src/jgz/` | The youth health care (JGZ) preprocessing, see `src/jgz/README.md` |
 | `resources/` | Small auxiliary files (CPI, region tables, code lists) |
@@ -361,6 +364,8 @@ Rscript P_2_1_run_all.R jgz                # the JGZ preprocessing (project 8151
 Samples: `newborns_a_perinatal`, `newborns_b_perinatal`, `newborns_a_mortality`, `newborns_b_mortality`, `prim8_a`, `prim8_b`, `age16`, `age21`, `age35` and `jgz`.
 
 `age35_current_address` is derived from `age35` (run that first): the same people with their regions at the address at age 35, the Amsterdam stadsdelen and gebieden, and the categorical outcomes of the intragenerational analysis, for which it is the input. It needs `resources/import_amsterdam_areas.xlsx` (in the RA: copy it from the intragenerational `Data/Help` folder).
+
+`age45_current_address` and `age55_current_address` are the other inputs of the intragenerational analysis: everyone born in 1975–1979 or 1965–1969 (age 45 or 55 in 2020–2024) who lived in the Netherlands in the year before the outcome age, with their own outcomes at that age and the regions of their address at that age. They have no parent link and no childhood address, because the intragenerational analysis only uses a person's own characteristics. Their steps are in `src/current_address/` (01: cohort from GBA with sex and migration background; 04: regions and categories); step 03 is the age35 outcomes script `src/age35/03_outcomes_age35.R`, which computes only the outcome blocks listed under `outcome_blocks` in the config and names the outcomes `c45_`/`c55_`. Gifts and age left parents are not computed for these samples (the household register starts in 1995). The region and category code is shared with `age35_current_address` (`src/lib/P_2_1_current_address.R`).
 
 Each sample runs in its own R process with its configuration, `config/<sample>.yml` (as named in the CBS RA) or `config/P_2_<version>_<sample>.yml` (with the version prefix, as in this repository). The `pipeline` section of that file lists the scripts to run. To rerun only some steps of one sample: `Rscript src/lib/P_2_1_run_cohort.R age35 03 04`.
 

@@ -7,6 +7,17 @@
 #   - Adding housing outcomes to the cohort.
 #   - Writing `temp/<cohort>/03_outcomes.rds`.
 #
+# Also used by age45_current_address and age55_current_address (the samples of
+# the intragenerational analysis, see config/<sample>.yml). Three config settings
+# make that possible; without them (age35) everything runs as before:
+#   - outcome_blocks:    the outcome blocks to compute (the #### sections below:
+#                        household_income, individual_income, education,
+#                        hourly_wage, socioeconomic, health, wealth, homeowner,
+#                        gifts, living_space, age_left_parents). Default: all.
+#   - required_outcomes: people with a missing value on one of these are dropped
+#                        (see DELETE OBSERVATIONS). Default: the age35 list.
+#   - the outcome prefix is "c<outcome_age>_" (c35_, c45_, c55_).
+#
 # SQLite version: the files that are available as converted .db (GBAPERSOON,
 # GBAADRESOBJECT, KINDOUDER, GBAHUISHOUDENS, VSLPOSTCODE, VSLGWB, LEVCYCLWOONNIETWOON,
 # SECMBUS) are read with read_cbs() (src/lib/sql_helpers.R): only the rows
@@ -51,6 +62,17 @@ cpi_tab <- read_excel(loc$cpi_index_data) %>%
 cpi_tab <- cpi_tab %>%
   mutate(
     cpi = cpi / cpi_tab %>% filter(year == cfg$cpi_base_year) %>% pull(cpi) * 100)
+
+
+# the outcome blocks to compute (config: outcome_blocks; default all)
+all_blocks <- c("household_income", "individual_income", "education", "hourly_wage",
+                "socioeconomic", "health", "wealth", "homeowner", "gifts", "living_space",
+                "age_left_parents")
+if (!is.null(cfg$outcome_blocks) && !all(cfg$outcome_blocks %in% all_blocks)) {
+  stop("Unknown outcome_blocks in the config: ",
+       paste(setdiff(cfg$outcome_blocks, all_blocks), collapse = ", "))
+}
+run_block <- function(block) is.null(cfg$outcome_blocks) || block %in% cfg$outcome_blocks
 
 
 #### LIVE CONTINUOUSLY IN NL ####
@@ -178,6 +200,9 @@ children <- cohort_dat %>%
   mutate(year_min = year - 1) %>%
   pivot_longer(cols = starts_with('year'),
                values_to = 'year') %>% select(-name)
+
+# (the functions and `children` above are also used by the blocks below)
+if (run_block("household_income")) {
 
 income_household <- tibble(RINPERSOONS = factor(), RINPERSOON = character(),
                            household_income = double(), primary_household_income = double(),
@@ -374,9 +399,11 @@ cohort_dat <-
 
 sample_size <- sample_size %>% mutate(n_6_child_household_income = nrow(cohort_dat))
 
+}   # household_income
 
 
 #### CHILD INCOME ####
+if (run_block("individual_income")) {
 
 # get income data from each requested year into single data frame
 get_ipi_filename <- function(year) {
@@ -553,9 +580,11 @@ cohort_dat <-
 
 sample_size <- sample_size %>% mutate(n_7_child_income = nrow(cohort_dat))
 
+}   # individual_income
 
 
 #### HIGHER EDUCATION ####
+if (run_block("education")) {
 
 # function to get latest version of specified year
 get_school_filename <- function(year) {
@@ -629,9 +658,11 @@ cohort_dat <-
   ) %>%
   select(-edu_attained)
 
+}   # education
 
 
 #### HOURLY INCOME ####
+if (run_block("hourly_wage")) {
 
 get_spolis_filename <- function(year) {
   # function to get latest version of specified year
@@ -760,8 +791,11 @@ cohort_dat <-
   ) %>%
   select(-c(spolis_n, longest_contract_type))
 
+}   # hourly_wage
+
 
 #### SOCIOECONOMIC ####
+if (run_block("socioeconomic")) {
 
 secm_tab <-
   # [SQL] SECMBUS: the children filter below is now also done inside SQLite.
@@ -821,9 +855,11 @@ cohort_dat <-
   ) %>%
   select(-SECM)
 
+}   # socioeconomic
 
 
 #### HEALTH COSTS ####
+if (run_block("health")) {
 
 # function to get latest version of specified year
 get_health_filename <- function(year) {
@@ -903,9 +939,11 @@ cohort_dat <- cohort_dat %>%
          hospital           = ifelse(is.na(hospital), 0, hospital),
          total_health_costs = ifelse(is.na(total_health_costs), 0, total_health_costs))
 
+}   # health
 
 
 #### WEALTH ####
+if (run_block("wealth")) {
 # VEHW1000VERH = Vermogen van het huishouden.
 # VEHWVEREXEWH = Vermogen van het huishouden exclusief eigen woning.
 
@@ -1015,11 +1053,13 @@ cohort_dat <-
 
 sample_size <- sample_size %>% mutate(n_8_child_wealth = nrow(cohort_dat))
 
+}   # wealth
 
 
 #### HOMEOWNER: PROPERTY BOUGHT OR RENT ####
 
-# find home address
+# find home address (adres_dat is also used by LIVING SPACE)
+if (run_block("homeowner") || run_block("living_space")) {
 adres_path <- file.path(loc$data_folder, loc$gbaao_data)
 # [SQL] only addresses of the children: adres_dat is only used for children in cohort_dat
 #       below (homeowner, living space at 35 and 34), and cohort_dat only gets smaller
@@ -1029,9 +1069,11 @@ adres_dat  <- read_cbs(adres_path, filter_in = list(RINPERSOON = cohort_dat$RINP
     SOORTOBJECTNUMMER = as_factor(SOORTOBJECTNUMMER, levels = "values"),
     GBADATUMAANVANGADRESHOUDING = ymd(GBADATUMAANVANGADRESHOUDING),
     GBADATUMEINDEADRESHOUDING = ymd(GBADATUMEINDEADRESHOUDING)
-  ) 
+  )
+}
 
-adres_tab <- 
+if (run_block("homeowner")) {
+adres_tab <-
   adres_dat %>%
   # take addresses that are still open on a specific date
   filter(GBADATUMAANVANGADRESHOUDING <= ymd(paste0(cfg$child_outcome_year_max, "-01-01")) &
@@ -1099,9 +1141,11 @@ cohort_dat <-
 
 rm(adres_tab, property_dat)
 
+}   # homeowner
 
 
 #### GIFTS RECEIVED ####
+if (run_block("gifts")) {
 
 
 get_schtab_filename <- function(year) {
@@ -1182,12 +1226,13 @@ cohort_dat <-
   mutate(gifts_received = ifelse(!is.na(sum_gifts), 1, 0), 
          sum_gifts = ifelse(is.na(sum_gifts), 0, sum_gifts)) # code NA to 0
 
+}   # gifts
 
 
 #### LIVING SPACE PER HOUSEHOLD MEMBER ####
+if (run_block("living_space")) {
 
-
-# LIVING SPACE PP AT AGE 35
+# LIVING SPACE PP AT THE OUTCOME AGE (35)
    
 # select home addresses
 adres_tab <- 
@@ -1316,17 +1361,17 @@ not_merged_tab <- not_merged_func(c('living_space_pp'))
 # change name
 not_merged_tab <-
   not_merged_tab %>%
-  mutate(outcome = recode(outcome, 
-                          'SOORTOBJECTNUMMER' = 'home address - age 35',
-                          'VBOOPPERVLAKTE' = 'VBOOPPERVLAKTE - age 35',
-                          'AantalBewoners' = 'AantalBewoners - age 35',
-                          'living_space_pp' = 'living_space_pp - age 35'))
+  mutate(outcome = recode(outcome,
+                          'SOORTOBJECTNUMMER' = paste('home address - age', cfg$outcome_age),
+                          'VBOOPPERVLAKTE' = paste('VBOOPPERVLAKTE - age', cfg$outcome_age),
+                          'AantalBewoners' = paste('AantalBewoners - age', cfg$outcome_age),
+                          'living_space_pp' = paste('living_space_pp - age', cfg$outcome_age)))
 
 
 rm(household_members)
 
 
-# LIVING SPACE PP AT AGE 34 
+# LIVING SPACE PP AT AGE 34 (ONE YEAR BEFORE THE OUTCOME AGE)
 # create living space pp at age 34 for those who are NA at age 35 (NA = 12.899)
 
 # LIVING SPACE
@@ -1420,9 +1465,9 @@ not_merged_tab <- not_merged_func(c('VBOOPPERVLAKTE', 'AantalBewoners'))
 # create living space per household member outcome at age 34
 cohort_dat <- 
   cohort_dat %>%
-  mutate(living_space_pp = ifelse(is.na(living_space_pp), 
+  mutate(living_space_pp = ifelse(is.na(living_space_pp),
                                   VBOOPPERVLAKTE / AantalBewoners, living_space_pp)) %>%
-  select(-c(january, VBOOPPERVLAKTE, AantalBewoners))
+  select(-c(january, VBOOPPERVLAKTE, AantalBewoners, SOORTOBJECTNUMMER, RINOBJECTNUMMER))
 
 # not merged
 not_merged_tab <- not_merged_func(c('living_space_pp'))
@@ -1430,16 +1475,22 @@ not_merged_tab <- not_merged_func(c('living_space_pp'))
 # change name
 not_merged_tab <-
   not_merged_tab %>%
-  mutate(outcome = recode(outcome, 
-                          'SOORTOBJECTNUMMER' = 'home address - age 34',
-                          'VBOOPPERVLAKTE' = 'VBOOPPERVLAKTE - age 34',
-                          'AantalBewoners' = 'AantalBewoners - age 34',
-                          'living_space_pp' = 'living_space_pp - age 34'))
+  mutate(outcome = recode(outcome,
+                          'SOORTOBJECTNUMMER' = paste('home address - age', cfg$outcome_age - 1),
+                          'VBOOPPERVLAKTE' = paste('VBOOPPERVLAKTE - age', cfg$outcome_age - 1),
+                          'AantalBewoners' = paste('AantalBewoners - age', cfg$outcome_age - 1),
+                          'living_space_pp' = paste('living_space_pp - age', cfg$outcome_age - 1)))
 
-rm(household_members, adres_dat, woon_dat)
+rm(household_members, woon_dat)
+
+}   # living_space
+if (exists("adres_dat")) rm(adres_dat)
 
 
 #### AGE LEFT PARENTS ####
+# Not for samples born before ~1980: the household register (GBAHUISHOUDENS)
+# starts in 1995, so for them the years around leaving home are not observed.
+if (run_block("age_left_parents")) {
 # load household data
 household_dat <-
   # [SQL] the cohort filter below is now also done inside SQLite
@@ -1462,7 +1513,7 @@ household_dat <-
 # select the age at which children left their parents home
 hh_dat <- tibble(RINPERSOONS = cohort_dat$RINPERSOONS, 
                  RINPERSOON = cohort_dat$RINPERSOON) %>%
-  mutate (age = 35)
+  mutate (age = as.numeric(cfg$outcome_age))   # a double, as the 35 it replaced
 
 for(year in seq(cfg$outcome_age, cfg$childhood_home_age)) {
   age_tab <- cohort_dat %>%
@@ -1511,8 +1562,7 @@ for(year in seq(cfg$outcome_age, cfg$childhood_home_age)) {
 cohort_dat <- left_join(cohort_dat, hh_dat %>% 
                           select(-living_at_home)%>%
                           rename (age_left_parents = age),
-                        by = c("RINPERSOONS", "RINPERSOON")) %>%
-  select(-c(SOORTOBJECTNUMMER, RINOBJECTNUMMER))
+                        by = c("RINPERSOONS", "RINPERSOON"))
 
 # not merged
 not_merged_tab <- not_merged_func(c('age_left_parents'))
@@ -1521,6 +1571,8 @@ not_merged_tab <- not_merged_func(c('age_left_parents'))
 
 # free up memory
 rm(hh_tab, hh_tab_missing, age_tab, household_dat, hh_dat)
+
+}   # age_left_parents
 
 
 # #### BELOW POVERTY LINE ####
@@ -1605,6 +1657,8 @@ outcomes <- c("employed", "social_assistance", "disability", "age_left_parents",
               "bottom_20_household_income", "top_20_individual_income", "bottom_20_individual_income" #,
               #"household_below_poverty"
               )
+# other samples set their own list in the config (required_outcomes)
+if (!is.null(cfg$required_outcomes)) outcomes <- cfg$required_outcomes
 
 # drop rows with a missing outcome; ungroup first: cohort_dat is still grouped by
 # birth_year here, and select(.) inside a grouped filter() does not line up per group
@@ -1629,13 +1683,16 @@ outcomes <- c("individual_income", "individual_income_perc", "hbo_attained", "wo
               "bottom_20_household_income", "top_20_individual_income", "bottom_20_individual_income" #,
               # "household_below_poverty"
               )
-suffix <- "c35_"
+# c35_ for age35; c45_ and c55_ for the other samples
+suffix <- paste0("c", cfg$outcome_age, "_")
+# only the outcomes of the blocks that were run (all of them for age35)
+outcomes <- intersect(outcomes, names(cohort_dat))
 
 
 # rename outcomes
-cohort_dat <- 
+cohort_dat <-
   cohort_dat %>%
-  rename_with(~str_c(suffix, .), .cols = all_of(outcomes)) %>% 
+  rename_with(~str_c(suffix, .), .cols = all_of(outcomes)) %>%
   ungroup() 
 
 sample_size <- sample_size %>% 

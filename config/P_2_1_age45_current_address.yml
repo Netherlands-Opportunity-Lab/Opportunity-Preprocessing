@@ -1,0 +1,105 @@
+# The age45 sample of the intragenerational analysis: everyone born in 1975-1979
+# (age 45 in 2020-2024), with own outcomes at age 45 and the regions of the address at
+# age 45. No parent link and no childhood address (the intragenerational analysis
+# only uses the person's own characteristics). Steps: see
+# src/current_address/P_2_1_01_cohort_current_address.R.
+# Outcomes: those in "Voorstel intragenerationele analyses" (offerte O.2025.1.2).
+default:
+  data_preparation:
+    # The name of the cohort
+    cohort_name: "age45_current_address"
+
+    # Birth date filters the cohort by age
+    child_birth_date_min: "01/01/1975"
+    child_birth_date_max: "31/12/1979"
+
+    # The cohort should live continuously in NL in the following period (ages)
+    child_live_start: 44
+    child_live_end: 45
+
+    # The cohort is allowed to be unregistered for this many days
+    # in this period
+    child_live_slack_days: 31
+
+    # age at which we measure the outcomes and take the address
+    outcome_age: 45
+
+    # Postal code link to homes will be considered on this target date
+    postcode_target_date: "31/12/2025"
+    # Neighbourhood geo link to homes will be considered on this target date
+    gwb_target_date: "31/12/2025"
+    # Corop geo link to homes will be considered on this target date
+    corop_target_date: "31/12/2025"
+
+    # Income will be deflated to cpi_base_year euros.
+    cpi_base_year: 2024
+
+    # Income year range (the year of the outcome age and the year before)
+    child_income_year_min: 2019
+    child_income_year_max: 2024
+
+    # Outcome year range
+    child_outcome_year_min: 2020
+    child_outcome_year_max: 2024
+
+    # health outcomes year range (ZVWZORGKOSTEN 2024 is not available yet)
+    health_year_min: 2019
+    health_year_max: 2023
+
+    # The outcome blocks of src/age35/03_outcomes_age35 to compute. Not computed:
+    #   gifts             (gifts from parents, measured at ages 22-33)
+    #   age_left_parents  (the household register starts in 1995, when this
+    #                      cohort had mostly left home already)
+    outcome_blocks: ["household_income", "individual_income", "education", "hourly_wage",
+                     "socioeconomic", "health", "wealth", "homeowner", "living_space"]
+
+    # People with a missing value on one of these are dropped (as in age35,
+    # without age_left_parents)
+    required_outcomes: ["employed", "social_assistance", "disability",
+                        "individual_income", "individual_income_perc",
+                        "debt", "wealth", "wealth_perc", "wealth_no_home", "home_wealth",
+                        "household_income", "household_income_perc",
+                        "disposable_household_income_perc", "disposable_household_income",
+                        "primary_household_income_perc", "primary_household_income",
+                        "individual_earnings", "individual_earnings_perc", "top_20_household_income",
+                        "bottom_20_household_income", "top_20_individual_income", "bottom_20_individual_income"]
+
+    # Municipalities of the Amsterdam Metropolitan Area (2024 codes)
+    amsterdam_metropolitan_area: ["0358", "0034", "0362", "0363", "0375", "0852", "0376",
+                                  "0377", "0384", "0385", "1942", "0392", "0394", "0396",
+                                  "0397", "0402", "0406", "0415", "0417", "0995", "0431",
+                                  "0437", "0439", "0450", "0451", "0453", "1696", "0880",
+                                  "0479", "0473"]
+
+  file_locations:
+    # The data folder is the root folder of the cbs microdata tables
+    data_folder: "G:/"
+    # Intermediate files of this sample
+    temp_folder: "temp/age45_current_address"
+    # The final cohort file (<cohort>_cohort.rds) is written here
+    output_folder: "output"
+
+    # path to the cbs microdata (as age35, see config/P_2_0_age35.yml)
+    gba_data: "Bevolking/GBAPERSOONTAB/2024/geconverteerde data/GBAPERSOON2024TABV3.db"
+    gbaao_data: "Bevolking/GBAADRESOBJECTBUS/geconverteerde data/GBAADRESOBJECT2024BUSV1.db"
+    # SPOLISBUS (yearly): folder with converted SPOLISBUS<year>V<n>.db files; empty: only
+    # 'geconverteerde data' next to the .sav
+    spolis_db_folder: ""
+    secm_data: "InkomenBestedingen/SECMBUS/geconverteerde data/SECMBUS2024V1.db"
+    woon_data: "BouwenWonen/LEVCYCLWOONNIETWOONBUS/LEVCYCLWOONNIETWOONBUSV2024122.sav"
+    # regions of the current address (as age35_current_address)
+    postcode_data: "BouwenWonen/VSLPOSTCODEBUS/VSLPOSTCODEBUSV2025031.sav"
+    vslgwb_data: "BouwenWonen/VSLGWBTAB/VSLGWB2025TAB03V1.sav"
+
+    # resources
+    cpi_index_data: "resources/Consumentenprijzen__prijsindex_2015_100_14112022_221558.xlsx"
+    corop_data: "K:/Utilities/HULPbestanden/GebiedeninNederland/GIN"
+    # Amsterdam stadsdelen, gebieden and wijken (as age35_current_address)
+    amsterdam_areas: "resources/import_amsterdam_areas.xlsx"
+
+  pipeline:
+    # The scripts that P_2_1_run_all.R runs for this cohort, in this order. Names
+    # without the version prefix (P_2_0_, P_2_1_), which only exists outside the RA.
+    # A name with a folder is relative to script_dir.
+    script_dir: "src/current_address"
+    scripts: ["01_cohort_current_address", "../age35/03_outcomes_age35", "04_current_address"]

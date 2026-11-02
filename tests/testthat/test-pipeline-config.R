@@ -23,7 +23,8 @@ test_that("every config has a pipeline whose scripts exist", {
     p <- config::get("pipeline", file = f)
     expect_false(is.null(p$scripts), info = f)
     for (s in c(p$scripts, p$optional_scripts)) {
-      expect_length(find_versioned(file.path(root, p$script_dir), s), 1)
+      # a name may include a folder relative to script_dir (as in P_2_1_run_cohort.R)
+      expect_length(find_versioned(file.path(root, p$script_dir, dirname(s)), basename(s)), 1)
     }
   }
 })

@@ -56,10 +56,12 @@ if (run_cohort != "jgz") {
 }
 # (the JGZ scripts read config/jgz.yml themselves, via src/jgz/jgz_helpers.R)
 
+# A script name may include a folder relative to script_dir (e.g.
+# "../age35/03_outcomes_age35"): the step number is the start of the file name.
 run_scripts <- run_pipeline$scripts
 if (!identical(run_steps, "all")) {
   run_candidates <- c(run_pipeline$scripts, run_pipeline$optional_scripts)
-  run_scripts <- run_candidates[substr(run_candidates, 1, 2) %in% run_steps]
+  run_scripts <- run_candidates[substr(basename(run_candidates), 1, 2) %in% run_steps]
   if (length(run_scripts) == 0) stop("No scripts for step(s) ", paste(run_steps, collapse = ", "), " of ", run_cohort)
 }
 
@@ -68,7 +70,8 @@ if (!identical(run_steps, "all")) {
 run_log <- start_run_log("output/logs", run_cohort)
 withCallingHandlers({
   for (run_script in run_scripts) {
-    log_step(run_log, run_script, source_versioned(run_pipeline$script_dir, run_script))
+    log_step(run_log, run_script,
+             source_versioned(file.path(run_pipeline$script_dir, dirname(run_script)), basename(run_script)))
 
     # every cohort file has one row per person (the step has already saved its
     # output, so after a failure here the next steps can be rerun once fixed)
