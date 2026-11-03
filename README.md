@@ -309,6 +309,14 @@ The age21 sample consists of individuals at age 21 born between 1998 and 2002. W
 
 -   c35_age_left_parents: Represents the age at which an individual stopped living at the parental home.
 
+-   c35_young_parents: Indicates whether the individual had a child before the age of 20 (the same definition as c21_young_parents, see [Young parents](#young-parents)).
+
+#### Young parents
+
+`young_parents` (`c21_`, `c35_`, `c45_`, `c55_`) is made by `add_young_parents()` in `src/lib/P_2_1_young_parents.R`, one function for all samples. From KINDOUDER it takes every child of whom the person is the father or the mother and computes the person's age at the birth of the first child: `young_parents` = 1 if that age is below 20, 0 otherwise (also 0 for people without a child). Fathers and mothers both count; the sex filter of the analysis gives young motherhood. For age45 and age55 the children who died or emigrated before October 1994 are not in KINDOUDER, so young parenthood can be slightly underestimated there.
+
+**Known limitation (not fixed yet).** A child only counts if the child and *both* its parents are registered in the GBA (`RINPERSOONS`, `RINPERSOONSMa` and `RINPERSOONSpa` all `"R"`). A child whose other parent is unknown or not in the GBA does not count for the person, even when the person is the known parent. Young parenthood is therefore probably underestimated, especially for young single mothers. The fix would be to require `"R"` only for the child and for the parent who is in the cohort. It is kept as it is for now; check in the RA how many children it concerns before changing it.
+
 ### How to re-create
 
 Code for the samples creation is provided as part of this replication package. It is available [here]((Zenodo%20link)). Description follows in section Description of code.
@@ -348,6 +356,7 @@ Approximate time needed to reproduce the analyses on a standard (2025) desktop m
 |------------------------------------|------------------------------------|
 | `resources/create_cbs_countries.R` | Generates CBS-style country classification tables |
 | `resources/set_cbs_versions.R` | Configures version control for CBS files |
+| `src/lib/P_2_1_young_parents.R` | `add_young_parents()`: the `young_parents` outcome of age21, age35, age45 and age55 (see [Young parents](#young-parents)) |
 | `src/lib/sql_helpers.R` | `read_cbs()` / `read_db()`: read the converted SQLite (`.db`) versions of the large CBS files, filtered inside SQLite (see `convert_files_to_sqlite/README.md`) |
 | `convert_files_to_sqlite/savtosqlite.py` | Converts CBS `.sav` files to `.db` in the format `read_db()` expects |
 
@@ -365,7 +374,7 @@ Samples: `newborns_a_perinatal`, `newborns_b_perinatal`, `newborns_a_mortality`,
 
 `age35_current_address` is derived from `age35` (run that first): the same people with their regions at the address at age 35, the Amsterdam stadsdelen and gebieden, and the categorical outcomes of the intragenerational analysis, for which it is the input. It needs `resources/import_amsterdam_areas.xlsx` (in the RA: copy it from the intragenerational `Data/Help` folder).
 
-`age45_current_address` and `age55_current_address` are the other inputs of the intragenerational analysis: everyone born in 1975–1979 or 1965–1969 (age 45 or 55 in 2020–2024) who lived in the Netherlands in the year before the outcome age, with their own outcomes at that age and the regions of their address at that age. They have no parent link and no childhood address, because the intragenerational analysis only uses a person's own characteristics. Their steps are in `src/current_address/` (01: cohort from GBA with sex and migration background; 04: regions and categories); step 03 is the age35 outcomes script `src/age35/03_outcomes_age35.R`, which computes only the outcome blocks listed under `outcome_blocks` in the config and names the outcomes `c45_`/`c55_`. Gifts and age left parents are not computed for these samples (the household register starts in 1995). The region and category code is shared with `age35_current_address` (`src/lib/P_2_1_current_address.R`).
+`age45_current_address` and `age55_current_address` are the other inputs of the intragenerational analysis: everyone born in 1975–1979 or 1965–1969 (age 45 or 55 in 2020–2024) who lived in the Netherlands in the year before the outcome age, with their own outcomes at that age and the regions of their address at that age. They have no parent link and no childhood address, because the intragenerational analysis only uses a person's own characteristics. Their steps are in `src/current_address/` (01: cohort from GBA with sex and migration background; 04: regions and categories); step 03 is the age35 outcomes script `src/age35/03_outcomes_age35.R`, which computes only the outcome blocks listed under `outcome_blocks` in the config and names the outcomes `c45_`/`c55_`. Gifts and age left parents are not computed for these samples (the household register starts in 1995). Young parenthood is computed, from the person's own children in KINDOUDER (see [Young parents](#young-parents)); this needs no link to the person's parents. The region and category code is shared with `age35_current_address` (`src/lib/P_2_1_current_address.R`).
 
 Each sample runs in its own R process with its configuration, `config/<sample>.yml` (as named in the CBS RA) or `config/P_2_<version>_<sample>.yml` (with the version prefix, as in this repository). The `pipeline` section of that file lists the scripts to run. To rerun only some steps of one sample: `Rscript src/lib/P_2_1_run_cohort.R age35 03 04`.
 

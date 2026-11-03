@@ -5,6 +5,7 @@
 #   - Adding education outcomes to the cohort.
 #   - Adding health outcomes to the cohort.
 #   - Adding housing outcomes to the cohort.
+#   - Adding young parenthood to the cohort.
 #   - Writing `temp/<cohort>/03_outcomes.rds`.
 #
 # Also used by age45_current_address and age55_current_address (the samples of
@@ -13,7 +14,8 @@
 #   - outcome_blocks:    the outcome blocks to compute (the #### sections below:
 #                        household_income, individual_income, education,
 #                        hourly_wage, socioeconomic, health, wealth, homeowner,
-#                        gifts, living_space, age_left_parents). Default: all.
+#                        gifts, living_space, age_left_parents,
+#                        young_parents). Default: all.
 #   - required_outcomes: people with a missing value on one of these are dropped
 #                        (see DELETE OBSERVATIONS). Default: the age35 list.
 #   - the outcome prefix is "c<outcome_age>_" (c35_, c45_, c55_).
@@ -67,7 +69,7 @@ cpi_tab <- cpi_tab %>%
 # the outcome blocks to compute (config: outcome_blocks; default all)
 all_blocks <- c("household_income", "individual_income", "education", "hourly_wage",
                 "socioeconomic", "health", "wealth", "homeowner", "gifts", "living_space",
-                "age_left_parents")
+                "age_left_parents", "young_parents")
 if (!is.null(cfg$outcome_blocks) && !all(cfg$outcome_blocks %in% all_blocks)) {
   stop("Unknown outcome_blocks in the config: ",
        paste(setdiff(cfg$outcome_blocks, all_blocks), collapse = ", "))
@@ -1575,6 +1577,17 @@ rm(hh_tab, hh_tab_missing, age_tab, household_dat, hh_dat)
 }   # age_left_parents
 
 
+#### YOUNG PARENTS ####
+# young_parents = 1 if the person's first child was born before age 20: the same
+# definition and code as c21_young_parents (src/lib/P_2_1_young_parents.R)
+if (run_block("young_parents")) {
+source_versioned("src/lib", "young_parents")
+cohort_dat <- add_young_parents(cohort_dat,
+                                kind_path = file.path(loc$data_folder, loc$kind_data),
+                                gba_path  = file.path(loc$data_folder, loc$gba_data))
+}   # young_parents
+
+
 # #### BELOW POVERTY LINE ####
 # 
 # #initiate poverty_tab
@@ -1676,7 +1689,7 @@ outcomes <- c("individual_income", "individual_income_perc", "hbo_attained", "wo
               "debt", "wealth", "wealth_perc", "wealth_no_home", "home_wealth", 
               "homeowner", "gifts_received", 
               "household_income", "household_income_perc", 
-              "living_space_pp", "sum_gifts", "age_left_parents" ,  
+              "living_space_pp", "sum_gifts", "age_left_parents", "young_parents",
               "disposable_household_income_perc", "disposable_household_income",
               "primary_household_income_perc", "primary_household_income",
               "individual_earnings", "individual_earnings_perc", "top_20_household_income",

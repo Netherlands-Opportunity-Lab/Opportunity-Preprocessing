@@ -265,85 +265,12 @@ rm(hh_tab, hh_tab_missing, age_tab, household_dat)
 
 
 #### YOUNG PARENTS ####
-
-
-# load kinderoudertab 
-# [SQL] only rows where the mother or the father is in the cohort (the first condition of
-#       the filter below, now also done when reading); XKOPPELNUMMER is dropped afterwards
-kindouder_dat <- read_cbs(file.path(loc$data_folder, loc$kind_data),
-                          filter_in = list(RINPERSOONMa = cohort_dat$RINPERSOON,
-                                           RINPERSOONpa = cohort_dat$RINPERSOON),
-                          match = "any") %>%
-  select(-XKOPPELNUMMER) %>%
-  as_factor(only_labelled = TRUE, levels = "values") %>%
-  filter((RINPERSOONMa %in% cohort_dat$RINPERSOON | RINPERSOONpa %in% cohort_dat$RINPERSOON),
-         RINPERSOONS == "R", RINPERSOONSMa == "R", RINPERSOONSpa == "R") %>%
-  rename(RINPERSOONS_infant = RINPERSOONS,
-         RINPERSOON_infant = RINPERSOON) 
-
-# load gba data
-# voormalig birth_dat, changed to gba_dat to match cohort creation 
-gba_path <- file.path(loc$data_folder, loc$gba_dat)
-gba_dat <-
-  # [SQL] only the infants and their parents (gba_dat is only joined on those three ids)
-  read_cbs(gba_path, cols = c("RINPERSOONS", "RINPERSOON", "GBAGEBOORTEJAAR",
-                              "GBAGEBOORTEMAAND", "GBAGEBOORTEDAG"),
-           filter_in = list(RINPERSOON = c(kindouder_dat$RINPERSOON_infant,
-                                           kindouder_dat$RINPERSOONMa, kindouder_dat$RINPERSOONpa))) %>%
-  mutate(RINPERSOONS = as_factor(RINPERSOONS, levels = "values"),
-         birthdate = dmy(paste(GBAGEBOORTEDAG, GBAGEBOORTEMAAND, GBAGEBOORTEJAAR, sep = "-"))) %>%
-  select(-c(GBAGEBOORTEJAAR, GBAGEBOORTEMAAND, GBAGEBOORTEDAG))
-
-
-# add infants birth date to cohort
-kindouder_dat <-
-  kindouder_dat %>%
-  left_join(gba_dat, by = c("RINPERSOONS_infant" = "RINPERSOONS",
-                            "RINPERSOON_infant" = "RINPERSOON")) %>%
-  rename(birthdate_infant = birthdate) %>%
-  select(-c(RINPERSOONS_infant, RINPERSOON_infant))
-
-# add parental birth date
-kindouder_dat <-
-  kindouder_dat %>%
-  left_join(gba_dat, by = c("RINPERSOONSMa" = "RINPERSOONS",
-                            "RINPERSOONMa" = "RINPERSOON")) %>%
-  rename(birthdate_ma = birthdate) %>%
-  left_join(gba_dat, by = c("RINPERSOONSpa" = "RINPERSOONS",
-                            "RINPERSOONpa" = "RINPERSOON")) %>%
-  rename(birthdate_pa = birthdate)
-
-# create one long df for each individual parent, their birthday and the birthdate of their child.
-kindvader_dat <- 
-  kindouder_dat %>% 
-  select(RINPERSOONSpa, RINPERSOONpa, birthdate_pa, birthdate_infant) %>% 
-  rename(RINPERSOONS = RINPERSOONSpa, RINPERSOON = RINPERSOONpa, 
-         birthdate_parent = birthdate_pa)
-kindmoeder_dat <- 
-  kindouder_dat %>%
-  select(RINPERSOONSMa, RINPERSOONMa, birthdate_ma, birthdate_infant) %>% 
-  rename(RINPERSOONS = RINPERSOONSMa, RINPERSOON = RINPERSOONMa, 
-         birthdate_parent = birthdate_ma)
-kindouder_dat <- rbind(kindvader_dat, kindmoeder_dat)
-
-# determine age at which person became a parent
-kindouder_dat <-
-  kindouder_dat %>%
-  mutate(age_at_birth_parent = interval(birthdate_parent, birthdate_infant) / years(1)) %>%
-  select(-c(birthdate_infant, birthdate_parent)) %>%
-  arrange(RINPERSOON, age_at_birth_parent) %>%
-  group_by(RINPERSOONS, RINPERSOON) %>%
-  summarize(age_at_birth_parent = age_at_birth_parent[1])
-
-
-# create young parent outcome and change to 0 if NA
-cohort_dat <- cohort_dat %>%
-  left_join(kindouder_dat, by = c("RINPERSOONS", "RINPERSOON")) %>% 
-  mutate(young_parents = ifelse(age_at_birth_parent < 20, 1, 0),
-         young_parents = ifelse(is.na(young_parents), 0, young_parents)) %>% 
-  select(-age_at_birth_parent)
-
-rm(gba_dat, kindouder_dat, kindvader_dat, kindmoeder_dat)
+# young_parents = 1 if the person's first child was born before age 20 (see
+# src/lib/P_2_1_young_parents.R, shared with age35/45/55)
+source_versioned("src/lib", "young_parents")
+cohort_dat <- add_young_parents(cohort_dat,
+                                kind_path = file.path(loc$data_folder, loc$kind_data),
+                                gba_path  = file.path(loc$data_folder, loc$gba_data))
 
 
 
