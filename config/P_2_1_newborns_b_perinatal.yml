@@ -77,3 +77,15 @@ default:
     # without the version prefix (P_2_0_, P_2_1_), which only exists outside the RA.
     script_dir: "src/newborns"
     scripts: ["01_cohort_newborns", "02_predictors_newborns", "03_outcomes_newborns_b_perinatal", "04_postprocessing_newborns_perinatal"]
+
+  final_checks:
+    # Checked on the final cohort file at the end of the run, by check_final_cohort()
+    # in src/lib/P_2_1_checks.R. Ranges refer to settings under data_preparation.
+    # the BIG2 (perinatal) sample: no stillbirths or deaths within 7 days
+    expected_columns: ["c00_sga", "c00_preterm_birth", "c00_total_health_costs"]
+    # mortality outcomes are only in the mortality sample; helper columns of 03
+    forbidden_columns: ["c00_perinatal_mortality", "c00_neonatal_mortality", "c00_infant_mortality", "perinatal_death", "p10_boys", "p10_girls", "date_of_death", "diff_days"]
+    dropped_in_last_step: ["perinatal_death"]
+    ranges:
+      birthdate: [child_birth_date_min, child_birth_date_max]
+      amddd: [cut_off_days_min, cut_off_days_max]

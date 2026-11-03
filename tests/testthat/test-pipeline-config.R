@@ -40,6 +40,18 @@ test_that("every cohort config has the settings the runner needs", {
   }
 })
 
+test_that("final_checks ranges refer to existing settings", {
+  for (f in setdiff(configs, grep("jgz", configs, value = TRUE))) {
+    cfg <- config::get("data_preparation", file = f)
+    checks <- config::get(file = f)$final_checks
+    for (col in names(checks$ranges)) {
+      settings <- unlist(checks$ranges[[col]])
+      expect_length(settings, 2)
+      for (s in settings) expect_false(is.null(cfg[[s]]), info = paste(f, col, s))
+    }
+  }
+})
+
 test_that("every R script parses", {
   scripts <- list.files(root, "\\.R$", recursive = TRUE, full.names = TRUE)
   scripts <- scripts[!grepl("renv/", scripts)]

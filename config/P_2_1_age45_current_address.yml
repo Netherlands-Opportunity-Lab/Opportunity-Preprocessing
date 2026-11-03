@@ -107,3 +107,13 @@ default:
     # A name with a folder is relative to script_dir.
     script_dir: "src/current_address"
     scripts: ["01_cohort_current_address", "../age35/03_outcomes_age35", "04_current_address"]
+
+  final_checks:
+    # Checked on the final cohort file at the end of the run, by check_final_cohort()
+    # in src/lib/P_2_1_checks.R. Ranges refer to settings under data_preparation.
+    # to add: the outcomes this cohort file must contain
+    expected_columns: []
+    forbidden_columns: []
+    dropped_in_last_step: []
+    ranges:
+      birthdate: [child_birth_date_min, child_birth_date_max]

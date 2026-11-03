@@ -344,7 +344,7 @@ Approximate time needed to reproduce the analyses on a standard (2025) desktop m
 | `P_2_1_run_all.R` | The one script that builds every cohort file, start to finish |
 | `config/` | One `.yml` per cohort (and `jgz.yml`): all paths, settings and the list of scripts to run. Paths are never hard-coded in scripts |
 | `src/<sample>/` | The pipeline steps. Variants that share code share scripts: `src/prim8/` serves `prim8_a` and `prim8_b`, `src/newborns/` the four newborn samples, `src/current_address/` (with `src/age35/03_outcomes_age35.R`) `age45_current_address` and `age55_current_address`. A script name in a config may include a folder relative to `script_dir` |
-| `src/lib/` | Shared helpers: running the pipeline and logging (`run_helpers`, `run_cohort`), key checks (`checks`), SQLite reading (`sql_helpers`), diagnostics (`function_kansenkaart_preprocessing`) |
+| `src/lib/` | Shared helpers: running the pipeline and logging (`run_helpers`, `run_cohort`), key and final-file checks (`checks`), SQLite reading (`sql_helpers`), diagnostics (`function_kansenkaart_preprocessing`) |
 | `src/jgz/` | The youth health care (JGZ) preprocessing, see `src/jgz/README.md` |
 | `resources/` | Small auxiliary files (CPI, region tables, code lists) |
 | `tests/` | Checks that need no CBS data: `Rscript tests/run_tests.R` |
@@ -378,7 +378,7 @@ Samples: `newborns_a_perinatal`, `newborns_b_perinatal`, `newborns_a_mortality`,
 
 Each sample runs in its own R process with its configuration, `config/<sample>.yml` (as named in the CBS RA) or `config/P_2_<version>_<sample>.yml` (with the version prefix, as in this repository). The `pipeline` section of that file lists the scripts to run. To rerun only some steps of one sample: `Rscript src/lib/P_2_1_run_cohort.R age35 03 04`.
 
-After every step the pipeline checks that the cohort data has exactly one row per person (non-missing, unique `RINPERSOONS` + `RINPERSOON`) and stops with a message if not. Every run writes a log to `output/logs/` with the git commit, the configuration, the R and package versions and the time per step.
+After every step the pipeline checks that the cohort data has exactly one row per person (non-missing, unique `RINPERSOONS` + `RINPERSOON`) and stops with a message if not. After the last step it checks the final cohort file with `check_final_cohort()` (`src/lib/P_2_1_checks.R`), using `final_checks` in the cohort's config: the last step dropped no columns other than `dropped_in_last_step`; the `expected_columns` are there and the `forbidden_columns` are not; the number of rows equals the last count in the most recent `temp/<cohort>/*_sample_size.rds`; and the `ranges` columns (e.g. `birthdate`) lie within the given settings. The newborn configs list their outcomes; the mortality and perinatal samples have different ones (`c00_*_mortality` vs `c00_sga`, `c00_preterm_birth`). Every run writes a log to `output/logs/` with the git commit, the configuration, the R and package versions and the time per step.
 
 ### Versions and archive
 

@@ -14,7 +14,9 @@
 #
 # What it does: reads config/<cohort>.yml, runs the scripts listed under
 # `pipeline` in that order, checks after every step that the cohort data has one
-# row per person, and writes a log to output/logs/.
+# row per person, checks the final cohort file after the last step
+# (check_final_cohort(), settings under `final_checks` in the config), and writes
+# a log to output/logs/.
 #
 # (c) Netherlands Opportunity Lab 2026
 
@@ -38,6 +40,7 @@ source_versioned("src/lib", "checks")
 #### CONFIGURATION ####
 run_config_file <- find_versioned("config", run_cohort, ext = "yml")
 run_pipeline <- config::get("pipeline", file = run_config_file)
+run_final_checks <- config::get(file = run_config_file)$final_checks   # NULL if not set
 
 if (run_cohort != "jgz") {
   # read_cbs(): reads the converted SQLite (.db) versions of the large CBS files,
@@ -68,6 +71,7 @@ if (!identical(run_steps, "all")) {
 
 #### RUN ####
 run_log <- start_run_log("output/logs", run_cohort)
+run_columns <- list()   # the columns of cohort_dat after each step (for the final checks)
 withCallingHandlers({
   for (run_script in run_scripts) {
     log_step(run_log, run_script,
@@ -77,7 +81,22 @@ withCallingHandlers({
     # output, so after a failure here the next steps can be rerun once fixed)
     if (run_cohort != "jgz" && exists("cohort_dat")) {
       check_keys(cohort_dat, c("RINPERSOONS", "RINPERSOON"), name = paste0(run_cohort, " after ", run_script))
+      run_columns[[run_script]] <- names(cohort_dat)
     }
+  }
+
+  # the final cohort file: only when the last step (which writes it) has run.
+  # `cohort_dat` is what that step wrote to output/<cohort>_cohort.rds.
+  run_last <- utils::tail(run_pipeline$scripts, 1)
+  if (run_cohort != "jgz" && run_last %in% run_scripts && exists("cohort_dat")) {
+    run_before <- utils::head(utils::tail(run_pipeline$scripts, 2), 1)
+    log_step(run_log, "final checks", {
+      run_report <- check_final_cohort(
+        cohort_dat, run_final_checks, cfg, loc$temp_folder,
+        columns_before = if (run_before != run_last) run_columns[[run_before]],
+        name = run_cohort)
+      for (run_line in run_report) log_line(run_log, run_line)
+    })
   }
 
   # robustness checks: only if the scripts are there (they are not on GitHub) and

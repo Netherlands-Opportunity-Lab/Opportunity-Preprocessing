@@ -98,3 +98,13 @@ default:
     # exists. The scripts are only in the RA, not on GitHub.
     robustness_dir: "src/age21/robustness"
     robustness_scripts: ["02", "03"]
+
+  final_checks:
+    # Checked on the final cohort file at the end of the run, by check_final_cohort()
+    # in src/lib/P_2_1_checks.R. Ranges refer to settings under data_preparation.
+    # to add: the outcomes this cohort file must contain
+    expected_columns: []
+    forbidden_columns: []
+    dropped_in_last_step: []
+    ranges:
+      birthdate: [child_birth_date_min, child_birth_date_max]

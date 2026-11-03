@@ -91,3 +91,13 @@ default:
     # without the version prefix (P_2_0_, P_2_1_), which only exists outside the RA.
     script_dir: "src/prim8"
     scripts: ["01_cohort_prim8", "02_predictors_prim8", "03_outcomes_prim8_a", "04_postprocessing_prim8"]
+
+  final_checks:
+    # Checked on the final cohort file at the end of the run, by check_final_cohort()
+    # in src/lib/P_2_1_checks.R. Ranges refer to settings under data_preparation.
+    # to add: the outcomes this cohort file must contain
+    expected_columns: []
+    forbidden_columns: []
+    dropped_in_last_step: []
+    ranges:
+      birthdate: [child_birth_date_min, child_birth_date_max]
