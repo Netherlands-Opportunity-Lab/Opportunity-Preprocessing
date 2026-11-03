@@ -80,7 +80,7 @@ default:
     postcode_data: "BouwenWonen/VSLPOSTCODEBUS/VSLPOSTCODEBUSV2025031.sav"
     vslgwb_data: "BouwenWonen/VSLGWBTAB/geconverteerde data/VSLGWB2025TAB03V1.db"
     woon_data: "BouwenWonen/LEVCYCLWOONNIETWOONBUS/LEVCYCLWOONNIETWOONBUSV2024122.sav"
-    household_data: "Bevolking/GBAHUISHOUDENSBUS/geconverteerde data/GBAHUISHOUDENS2024BUSV1.db"
+    household_data: "Bevolking/GBAHUISHOUDENSBUS/Geconverteerde data/GBAHUISHOUDENS2024BUSV1.db"
 
 
     # resources
