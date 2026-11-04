@@ -30,10 +30,62 @@ source_versioned <- function(dir, name) {
 
 #### RUN LOG ####
 
-git_commit <- function() {
-  out <- tryCatch(suppressWarnings(system2("git", c("rev-parse", "HEAD"), stdout = TRUE, stderr = FALSE)),
-                  error = function(e) character(0))
-  if (length(out) == 1 && nchar(out) == 40) out else "unknown (git not available)"
+# The commit the scripts were run from, read straight from the .git folder, so it
+# also works where the git command is not on the PATH (the CBS RA, where git only
+# comes with TortoiseGit). Looks for .git in `dir` and its parent folders; follows
+# HEAD to the branch ref (loose file or packed-refs). Returns e.g.
+# "3f2a...c9 (branch S_2_1)", or "unknown (no .git folder found)".
+# Uncommitted changes cannot be seen this way; when the git command does work,
+# " + uncommitted changes" is added if the working tree differs from the commit.
+git_commit <- function(dir = getwd()) {
+  find_git_dir <- function(d) {
+    d <- normalizePath(d, winslash = "/", mustWork = FALSE)
+    repeat {
+      g <- file.path(d, ".git")
+      if (dir.exists(g)) return(g)
+      if (file.exists(g)) {                       # worktree/submodule: ".git" is a file "gitdir: <path>"
+        target <- sub("^gitdir:\\s*", "", readLines(g, n = 1, warn = FALSE))
+        if (!grepl("^(/|[A-Za-z]:)", target)) target <- file.path(d, target)
+        return(normalizePath(target, winslash = "/", mustWork = FALSE))
+      }
+      parent <- dirname(d)
+      if (identical(parent, d)) return(NA_character_)
+      d <- parent
+    }
+  }
+  read_ref <- function(git_dir, ref) {
+    loose <- file.path(git_dir, ref)
+    if (file.exists(loose)) return(trimws(readLines(loose, n = 1, warn = FALSE)))
+    packed <- file.path(git_dir, "packed-refs")
+    if (file.exists(packed)) {
+      lines <- readLines(packed, warn = FALSE)
+      hit <- lines[!grepl("^[#^]", lines) & endsWith(lines, paste0(" ", ref))]
+      if (length(hit) >= 1) return(sub(" .*$", "", hit[1]))
+    }
+    NA_character_
+  }
+
+  git_dir <- tryCatch(find_git_dir(dir), error = function(e) NA_character_)
+  if (is.na(git_dir) || !file.exists(file.path(git_dir, "HEAD"))) return("unknown (no .git folder found)")
+
+  head <- trimws(readLines(file.path(git_dir, "HEAD"), n = 1, warn = FALSE))
+  if (grepl("^ref:", head)) {
+    ref    <- trimws(sub("^ref:", "", head))
+    hash   <- read_ref(git_dir, ref)
+    branch <- paste0("branch ", sub("^refs/heads/", "", ref))
+  } else {
+    hash   <- head
+    branch <- "detached HEAD"
+  }
+  if (is.na(hash) || !grepl("^[0-9a-f]{40}$", hash)) return(paste0("unknown (", branch, " has no commits yet)"))
+
+  dirty <- tryCatch(suppressWarnings(system2("git", c("-C", shQuote(dir), "status", "--porcelain"),
+                                             stdout = TRUE, stderr = FALSE)),
+                    error = function(e) NULL)
+  status <- attr(dirty, "status")
+  note <- if (is.null(dirty) || (!is.null(status) && status != 0)) ""
+          else if (length(dirty) > 0) " + uncommitted changes" else ""
+  paste0(hash, " (", branch, ")", note)
 }
 
 start_run_log <- function(log_dir, label) {
