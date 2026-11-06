@@ -88,7 +88,8 @@ no `join_by()`, `if_any()` or `relationship =`.
   education file 2018, and ETNGRP / ISCED from his CBS reference files when
   they exist (paths in the config). Remaining differences: postcodes per
   address use validity dates (Coen: first registered postcode), and ETNGRP
-  falls back on country labels if LANDAKTUEELREFV9 is not found. Compare the
+  comes from LANDAKTUEELREFV15 (Coen used V9, which is no longer in RA) and
+  falls back on country labels if that file is not found. Compare the
   output with Coen's
   `H:/Archive/Coen/TempData/Data_CatchmentArea_3pooled_withvariables.dta`
   inside RA (children per `org_catchment`, `d_obs_cat` distribution) and check
@@ -132,9 +133,10 @@ no `join_by()`, `if_any()` or `relationship =`.
   whole file. Needs the R packages DBI and RSQLite; pointing a path in the
   config to the `.sav` gives the same result with `read_sav()`. The yearly
   files (income, education, health costs) are still read as `.sav`. Newer versions include CBS corrections, so counts in 01
-  and 03 can shift slightly. The CBS code lists in 03 (LANDAKTUEELREFV9,
-  OPLEIDINGSNRREFV24, CTOREFV8) stay the versions Coen used, for his ETNGRP
-  and ISCED coding; prim8_a uses V15 / V36 / V13.
+  and 03 can shift slightly. The CBS code lists in 03 (OPLEIDINGSNRREFV24,
+  CTOREFV8) stay the versions Coen used, for his ISCED coding; for ETNGRP
+  LANDAKTUEELREFV15 replaces his V9, which is no longer in RA (06-11-2026).
+  prim8_a uses V15 / V36 / V13.
 - **PC4 file.** `resources/jgz_pc4gebieden.csv` is the copy from
   `Opportunity-Analysis-Map/JGZ/resources`; the copy in "Background info
   preprocessing JGZ" on SharePoint has broken quoting. PC4 8080 is listed for

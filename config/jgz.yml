@@ -162,8 +162,9 @@ default:
     # CBS reference files used by Coen. When they exist, ETNGRP and
     # pa_/ma_ISCED2011LevelHB are built exactly as in his do-files; otherwise
     # ETNGRP comes from the fallback above and ISCED stays empty. Check the
-    # versions available in RA.
-    catch_land_etngrp_file: "K:/Utilities/Code_Listings/SSBreferentiebestanden/Geconverteerde data/LANDAKTUEELREFV9.dta"
+    # versions available in RA. Coen used LANDAKTUEELREFV9, which is no longer in
+    # RA (06-11-2026: only V12 and V15, in folder `geconverteerdedata`); V15 is used.
+    catch_land_etngrp_file: "K:/Utilities/Code_Listings/SSBreferentiebestanden/geconverteerdedata/LANDAKTUEELREFV15.dta"
     catch_oplnr_ref_file:   "K:/Utilities/Code_Listings/SSBreferentiebestanden/Geconverteerde data/OPLEIDINGSNRREFV24.dta"
     catch_cto_ref_file:     "K:/Utilities/Code_Listings/SSBreferentiebestanden/Geconverteerde data/CTOREFV8.dta"
 
