@@ -41,11 +41,34 @@ library(stringr)
 
 
 #### SELECT COHORT FROM PERINED ####
+# Perined has hundreds of columns, of which the newborn samples only need the ones
+# below (proposal Helen, 06-11-2026, plus meerling and congenafw). Selecting
+# them straight after reading keeps the other columns out of all later steps.
+# Names are the raw Perined names; several are renamed further down
+# (CBKSoortNr_Kind -> RINPERSOONS, Rinpersoon_Kind -> RINPERSOON,
+# ddgeb -> birthdate, gesl -> sex, etnic -> etniciteit).
+# all_of(): the run stops if one of these columns is not in the Perined file.
+perined_columns <- c(
+  # ids of child and mother
+  "CBKSoortNr_Kind", "Rinpersoon_Kind", "CBKSoortNr_Moeder", "Rinpersoon_Moeder",
+  # birth date, year and postcode (pc4 = mother's postcode at delivery)
+  "ddgeb", "jaar", "pc4",
+  # child characteristics
+  "gesl", "etnic", "par",
+  # birth outcomes: mortality, gestational age (days, weeks), weight, Apgar at 5 min
+  "sterfte", "amddd", "amww", "geboortegew", "apgar5",
+  # multiple birth (twins etc.) and congenital anomalies: kept so that multiples
+  # can be excluded or checked (the Hoftiezer p10 curves used for SGA) and for
+  # sensitivity checks on the mortality outcomes
+  "meerling", "congenafw"
+)
+
 # only consider births where gestational age >= 24 weeks.
 # drop observations where RIN is unknown
 perined_path <- file.path(loc$perined_data)
-cohort_dat <- 
+cohort_dat <-
   read_rds(perined_path) %>%
+  select(all_of(perined_columns)) %>%
   filter(!is.na(Rinpersoon_Kind)) %>%
   mutate(gesl = factor(gesl, levels = c("1", "2", "3", "UNK", ""),
                            labels = c("jongen", "meisje", NA, NA, NA)),
