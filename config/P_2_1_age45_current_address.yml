@@ -52,7 +52,7 @@ default:
     #                      cohort had mostly left home already)
     outcome_blocks: ["household_income", "individual_income", "education", "hourly_wage",
                      "socioeconomic", "health", "wealth", "homeowner", "living_space",
-                     "young_parents"]
+                     "young_parents", "poverty", "cumulation"]
 
     # People with a missing value on one of these are dropped (as in age35,
     # without age_left_parents)
@@ -86,6 +86,9 @@ default:
     # KINDOUDER: the person's own children, for young_parents (as age35). Only the
     # person's children are used; there is no link to the person's parents.
     kind_data: "Bevolking/KINDOUDERTAB/KINDOUDER2024TABV1.sav"
+    # INHARMATAB (household income vs the poverty line, from 2018), for poverty and
+    # cumulation (as age35)
+    poverty_data: "InkomenBestedingen/INHARMATAB/"
     # SPOLISBUS (yearly): folder with converted SPOLISBUS<year>V<n>.db files; empty: only
     # 'geconverteerde data' next to the .sav
     spolis_db_folder: ""

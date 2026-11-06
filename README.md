@@ -247,9 +247,9 @@ The age21 sample consists of individuals at age 21 born between 1998 and 2002. W
 
 -   c35_specialist_mhc: Indicates whether an individual utilized specialist care within the basic insurance at the age of 34.
 
--   c35_basic_mhc: Indicates whether an individual utilized generalist basic mental healthcare within the basic insurance at the age of 34.
+-   c35_basic_mhc: Indicates whether an individual utilized generalist basic mental healthcare within the basic insurance at the age of 34. Note: in the code (`03_outcomes`) this is basic *or* specialist mental healthcare (`ZVWKGENBASGGZ > 0 | ZVWKSPECGGZ > 0`), so it is the same as c35_mhc.
 
--   c35_mhc: Indicates whether an individual utilized any mental healthcare services within the basic insurance at the age of 34.
+-   c35_mhc: Indicates whether an individual utilized any mental healthcare services (basic or specialist) within the basic insurance at the age of 34. Fixed on 06-11-2026 (also c21_mhc): before, everyone with specialist mental healthcare got NA and then 0, so the variable only counted people with basic mental healthcare alone.
 
 -   c35_pharma: Indicates whether an individual utilized pharmacy services within the basic insurance at the age of 34.
 
@@ -263,7 +263,7 @@ The age21 sample consists of individuals at age 21 born between 1998 and 2002. W
 
 -   c35_bottom_20_household_income: Indicates whether the individual’s household income is in the bottom 20th percentile of the household income distribution.
 
--   c35_household_below_poverty: Indicates whether an individual’s income was below the poverty threshold at ages 34 and 35.
+-   c35_household_below_poverty: Indicates whether an individual’s household was below the poverty line of CBS, Nibud and SCP (INHARMATAB) in the year of the 35th birthday (one year only). 0 if not poor, including households with an income below the line but wealth above it (INHARMOEDE 991); NA for student and institutional households (998, 999) and people without a household. See [Cumulation](#cumulation).
 
 -   c35_disposable_household_income: Represents the average disposable income (gross income less transfers and taxes) at the household level when the child is aged 34–35.
 
@@ -311,11 +311,27 @@ The age21 sample consists of individuals at age 21 born between 1998 and 2002. W
 
 -   c35_young_parents: Indicates whether the individual had a child before the age of 20 (the same definition as c21_young_parents, see [Young parents](#young-parents)).
 
+-   c35_cum_educ_poverty, c35_cum_poverty_mhc, c35_cum_educ_mhc: Indicate whether the individual has at least these two of the three disadvantages no higher education, household below the poverty line and mental healthcare use (whatever the third). c35_cum_educ_poverty_mhc: all three. See [Cumulation](#cumulation).
+
 #### Young parents
 
 `young_parents` (`c21_`, `c35_`, `c45_`, `c55_`) is made by `add_young_parents()` in `src/lib/P_2_1_young_parents.R`, one function for all samples. From KINDOUDER it takes every child of whom the person is the father or the mother and computes the person's age at the birth of the first child: `young_parents` = 1 if that age is below 20, 0 otherwise (also 0 for people without a child). Fathers and mothers both count; the sex filter of the analysis gives young motherhood. For age45 and age55 the children who died or emigrated before October 1994 are not in KINDOUDER, so young parenthood can be slightly underestimated there.
 
 **Known limitation (not fixed yet).** A child only counts if the child and *both* its parents are registered in the GBA (`RINPERSOONS`, `RINPERSOONSMa` and `RINPERSOONSpa` all `"R"`). A child whose other parent is unknown or not in the GBA does not count for the person, even when the person is the known parent. Young parenthood is therefore probably underestimated, especially for young single mothers. The fix would be to require `"R"` only for the child and for the parent who is in the cohort. It is kept as it is for now; check in the RA how many children it concerns before changing it.
+
+#### Cumulation
+
+The cumulation outcomes (`cum_educ_poverty`, `cum_poverty_mhc`, `cum_educ_mhc`, `cum_educ_poverty_mhc`, with prefix `c35_`, `c45_`, `c55_`) count the accumulation of three disadvantages, as chosen by Bastian (06-11-2026):
+
+1. **no higher education**: `hbo_attained == 0` (no hbo or wo diploma);
+2. **below the poverty line**: `household_below_poverty == 1` (one year, see above);
+3. **mental healthcare**: `mhc == 1` (basic or specialist).
+
+A two-indicator outcome is 1 if the person has *at least* those two, whatever the third. It is NA only when the answer depends on a missing poverty value (for example no higher education and missing poverty: NA; higher education and missing poverty: 0). The code is in `src/lib/P_2_1_poverty_cumulation.R` (blocks `poverty` and `cumulation` of `03_outcomes_age35`).
+
+**Timing.** The three indicators are not measured at exactly the same moment. Education (HOOGSTEOPLTAB) and poverty (INHARMATAB) are taken in the year of the 35th (45th, 55th) birthday. Mental healthcare comes from the health data (ZVWZORGKOSTENTAB), which is meant to be measured one year earlier (`health_outcome_age: 34` in the config) and is available up to 2023.
+
+**Missing education.** People without an education record in HOOGSTEOPLTAB get `hbo_attained = 0`, so they count as "no higher education". This is how `hbo_attained` and `wo_attained` have always been made for age35 (so also in the earlier exports). It is reasonable for higher education: the registers of hbo and wo diplomas obtained in the Netherlands are complete from 1986 and 1983, so a person with a Dutch hbo or wo diploma is almost always in HOOGSTEOPLTAB. What it misses are mainly foreign diplomas (mostly only known for people in the Labour Force Survey), so "no higher education" is overestimated for people who studied abroad, mostly first-generation migrants. For age55 (born 1965–1969) a few hbo diplomas obtained before 1986 can also be missing.
 
 ### How to re-create
 
@@ -356,6 +372,7 @@ Approximate time needed to reproduce the analyses on a standard (2025) desktop m
 |------------------------------------|------------------------------------|
 | `resources/create_cbs_countries.R` | Generates CBS-style country classification tables |
 | `resources/set_cbs_versions.R` | Configures version control for CBS files |
+| `src/lib/P_2_1_poverty_cumulation.R` | `add_household_poverty()` and `add_cumulation()`: `household_below_poverty` and the cumulation outcomes of age35, age45 and age55 (see [Cumulation](#cumulation)) |
 | `src/lib/P_2_1_young_parents.R` | `add_young_parents()`: the `young_parents` outcome of age21, age35, age45 and age55 (see [Young parents](#young-parents)) |
 | `src/lib/sql_helpers.R` | `read_cbs()` / `read_db()`: read the converted SQLite (`.db`) versions of the large CBS files, filtered inside SQLite (see `convert_files_to_sqlite/README.md`) |
 | `convert_files_to_sqlite/savtosqlite.py` | Converts CBS `.sav` files to `.db` in the format `read_db()` expects |
@@ -374,7 +391,7 @@ Samples: `newborns_a_perinatal`, `newborns_b_perinatal`, `newborns_a_mortality`,
 
 `age35_current_address` is derived from `age35` (run that first): the same people with their regions at the address at age 35, the Amsterdam stadsdelen and gebieden, and the categorical outcomes of the intragenerational analysis, for which it is the input. It needs `resources/import_amsterdam_areas.xlsx` (in the RA: copy it from the intragenerational `Data/Help` folder).
 
-`age45_current_address` and `age55_current_address` are the other inputs of the intragenerational analysis: everyone born in 1975–1979 or 1965–1969 (age 45 or 55 in 2020–2024) who lived in the Netherlands in the year before the outcome age, with their own outcomes at that age and the regions of their address at that age. They have no parent link and no childhood address, because the intragenerational analysis only uses a person's own characteristics. Their steps are in `src/current_address/` (01: cohort from GBA with sex and migration background; 04: regions and categories); step 03 is the age35 outcomes script `src/age35/03_outcomes_age35.R`, which computes only the outcome blocks listed under `outcome_blocks` in the config and names the outcomes `c45_`/`c55_`. Gifts and age left parents are not computed for these samples (the household register starts in 1995). Young parenthood is computed, from the person's own children in KINDOUDER (see [Young parents](#young-parents)); this needs no link to the person's parents. The region and category code is shared with `age35_current_address` (`src/lib/P_2_1_current_address.R`).
+`age45_current_address` and `age55_current_address` are the other inputs of the intragenerational analysis: everyone born in 1975–1979 or 1965–1969 (age 45 or 55 in 2020–2024) who lived in the Netherlands in the year before the outcome age, with their own outcomes at that age and the regions of their address at that age. They have no parent link and no childhood address, because the intragenerational analysis only uses a person's own characteristics. Their steps are in `src/current_address/` (01: cohort from GBA with sex and migration background; 04: regions and categories); step 03 is the age35 outcomes script `src/age35/03_outcomes_age35.R`, which computes only the outcome blocks listed under `outcome_blocks` in the config and names the outcomes `c45_`/`c55_`. Gifts and age left parents are not computed for these samples (the household register starts in 1995). Young parenthood is computed, from the person's own children in KINDOUDER (see [Young parents](#young-parents)); this needs no link to the person's parents. Household poverty and the cumulation outcomes are computed as for age35 (see [Cumulation](#cumulation)). The region and category code is shared with `age35_current_address` (`src/lib/P_2_1_current_address.R`).
 
 Each sample runs in its own R process with its configuration, `config/<sample>.yml` (as named in the CBS RA) or `config/P_2_<version>_<sample>.yml` (with the version prefix, as in this repository). The `pipeline` section of that file lists the scripts to run. To rerun only some steps of one sample: `Rscript src/lib/P_2_1_run_cohort.R age35 03 04`.
 

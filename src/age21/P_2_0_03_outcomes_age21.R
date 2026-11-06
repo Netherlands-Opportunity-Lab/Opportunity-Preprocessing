@@ -582,7 +582,7 @@ for (year in seq(as.integer(cfg$health_year_min), as.integer(cfg$health_year_max
       basic_mhc          = ifelse((ZVWKGENBASGGZ > 0 | ZVWKSPECGGZ > 0), 1, 0),
       specialist_mhc     = ifelse(ZVWKSPECGGZ > 0, 1, 0),
       mhc                = case_when(
-        is.na(basic_mhc) | (specialist_mhc) ~ NA_real_, 
+        is.na(basic_mhc) | is.na(specialist_mhc) ~ NA_real_, 
         basic_mhc == 1 | specialist_mhc == 1 ~ 1, 
         TRUE ~ 0),
       hospital           = ifelse(ZVWKZIEKENHUIS > 0, 1, 0),

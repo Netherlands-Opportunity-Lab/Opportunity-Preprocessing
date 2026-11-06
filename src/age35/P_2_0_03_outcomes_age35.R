@@ -6,6 +6,7 @@
 #   - Adding health outcomes to the cohort.
 #   - Adding housing outcomes to the cohort.
 #   - Adding young parenthood to the cohort.
+#   - Adding household poverty and the cumulation outcomes to the cohort.
 #   - Writing `temp/<cohort>/03_outcomes.rds`.
 #
 # Also used by age45_current_address and age55_current_address (the samples of
@@ -15,7 +16,7 @@
 #                        household_income, individual_income, education,
 #                        hourly_wage, socioeconomic, health, wealth, homeowner,
 #                        gifts, living_space, age_left_parents,
-#                        young_parents). Default: all.
+#                        young_parents, poverty, cumulation). Default: all.
 #   - required_outcomes: people with a missing value on one of these are dropped
 #                        (see DELETE OBSERVATIONS). Default: the age35 list.
 #   - the outcome prefix is "c<outcome_age>_" (c35_, c45_, c55_).
@@ -69,7 +70,7 @@ cpi_tab <- cpi_tab %>%
 # the outcome blocks to compute (config: outcome_blocks; default all)
 all_blocks <- c("household_income", "individual_income", "education", "hourly_wage",
                 "socioeconomic", "health", "wealth", "homeowner", "gifts", "living_space",
-                "age_left_parents", "young_parents")
+                "age_left_parents", "young_parents", "poverty", "cumulation")
 if (!is.null(cfg$outcome_blocks) && !all(cfg$outcome_blocks %in% all_blocks)) {
   stop("Unknown outcome_blocks in the config: ",
        paste(setdiff(cfg$outcome_blocks, all_blocks), collapse = ", "))
@@ -905,7 +906,7 @@ for (year in seq(as.integer(cfg$health_year_min), as.integer(cfg$health_year_max
              basic_mhc          = ifelse((ZVWKGENBASGGZ > 0 | ZVWKSPECGGZ > 0), 1, 0),
              specialist_mhc     = ifelse(ZVWKSPECGGZ > 0, 1, 0),
              mhc                = case_when(
-               is.na(basic_mhc) | (specialist_mhc) ~ NA_real_,
+               is.na(basic_mhc) | is.na(specialist_mhc) ~ NA_real_,
                basic_mhc == 1 | specialist_mhc == 1 ~ 1,
                TRUE ~ 0),
              hospital           = ifelse(ZVWKZIEKENHUIS > 0, 1, 0),
@@ -1588,75 +1589,44 @@ cohort_dat <- add_young_parents(cohort_dat,
 }   # young_parents
 
 
-# #### BELOW POVERTY LINE ####
-# 
-# #initiate poverty_tab
-# poverty_tab <- tibble(RINPERSOONS = factor(), RINPERSOON = character(),
-#                       household_below_poverty = double(), year = integer())
-# 
-# for (year in seq(2018, as.integer(cfg$child_outcome_year_max))) { #2018 is the first year of INHARMATAB
-#   
-#   # load koppel data person to household
-#   koppel_hh <- read_sav(get_koppeltabel_filename2(year)) %>%
-#     # select only incomes of children
-#     filter(RINPERSOON %in% cohort_dat$RINPERSOON) %>%
-#     mutate(RINPERSOONSHKW = as_factor(RINPERSOONSHKW, levels = "value"),
-#            RINPERSOONS = as_factor(RINPERSOONS, levels = "value"))
-#   
-#   
-#   #load poverty data
-#   poverty_child <-
-#     read_sav(file.path(loc$data_folder, paste0(loc$poverty_data, "INHARMA", year, "TABV1.sav"))) %>%
-#     mutate(
-#       RINPERSOONSHKW = as_factor(RINPERSOONSHKW, levels = "value"),
-#       INHARMOEDE = as.numeric(INHARMOEDE),
-#       year = year
-#     ) %>%
-#     mutate(
-#       household_below_poverty = case_when(INHARMOEDE %in% c(998, 999) ~ NA_real_,
-#                                 INHARMOEDE < 100 ~ 1,
-#                                 TRUE ~ 0)
-#     ) %>%
-#     inner_join(koppel_hh, by = c("RINPERSOONSHKW", "RINPERSOONHKW")) %>%
-#     select(-c("INHARMOEDE", "RINPERSOONHKW", "RINPERSOONSHKW"))
-#   
-#   poverty_tab <- rbind(poverty_tab, poverty_child) 
-#   
-#   rm(koppel_hh, poverty_child)
-# }
-# 
-# # add year variable at which the child is a specific age
-# poverty_tab <-
-#   poverty_tab %>%
-#   rename(poverty_year = year) %>%
-#   left_join(cohort_dat %>% select(RINPERSOONS, RINPERSOON, year), 
-#             by = c("RINPERSOONS", "RINPERSOON"))
-# 
-# 
-# # compute the mean of the year the child is a specific age and the year before that
-# poverty_tab <-
-#   poverty_tab %>%
-#   arrange(RINPERSOON) %>%
-#   mutate(year = ifelse(poverty_year == (year - 1), (year - 1), year),
-#          year = ifelse(poverty_year  == year, year, NA)) %>%
-#   filter(!is.na(year)) %>%
-#   select(-year)
-# 
-# 
-# # compute mean, dummy = 1 if household_below_poverty =1 in both years, 0 if 0 in any of the years, and NA if NA in any of the years
-# poverty_tab <- 
-#   poverty_tab %>% 
-#   group_by(RINPERSOONS, RINPERSOON) %>% 
-#   summarize(household_below_poverty = case_when(any(is.na(household_below_poverty)) ~ NA_real_,
-#                                       any(household_below_poverty == 0) ~ 0, 
-#                                       all(household_below_poverty == 1, na.rm = TRUE) ~ 1)) %>%
-#   ungroup()
-# 
-# # add to data
-# cohort_dat <- left_join(cohort_dat, poverty_tab,
-#                         by = c("RINPERSOONS", "RINPERSOON"))
-# 
-# rm(poverty_tab)
+#### BELOW POVERTY LINE ####
+# household_below_poverty = 1 if the person's household is below the poverty line of
+# CBS, Nibud and SCP (INHARMATAB) in the outcome year, one year only. Coding and
+# details in src/lib/P_2_1_poverty_cumulation.R. INHARMATAB starts in 2018. (This
+# replaces an older, commented-out version that also took the year before.)
+if (run_block("poverty")) {
+source_versioned("src/lib", "poverty_cumulation")
+
+get_poverty_filename <- function(year) {
+  # latest version of the year (e.g. INHARMA2023TABV2.sav over ...V1.sav)
+  fl <- list.files(
+    path = file.path(loc$data_folder, loc$poverty_data),
+    pattern = paste0("^INHARMA", year, "TABV[0-9]+\\.sav$"),
+    full.names = TRUE, recursive = TRUE, ignore.case = TRUE
+  )
+  if (length(fl) == 0) stop("No INHARMATAB file for ", year, " in ", loc$poverty_data)
+  fl[order(basename(fl), decreasing = TRUE)][1]
+}
+
+cohort_dat <- add_household_poverty(cohort_dat,
+                                    koppel_file  = get_koppeltabel_filename2,
+                                    poverty_file = get_poverty_filename)
+
+# not merged
+not_merged_tab <- not_merged_func('household_below_poverty')
+}   # poverty
+
+
+#### CUMULATION ####
+# Accumulation of disadvantage: no higher education, below the poverty line, mental
+# health care (basic or specialist). cum_educ_poverty, cum_poverty_mhc, cum_educ_mhc
+# = 1 if at least those two; cum_educ_poverty_mhc = 1 if all three. Needs the blocks
+# education, poverty and health. See src/lib/P_2_1_poverty_cumulation.R and the
+# README ("Cumulation").
+if (run_block("cumulation")) {
+source_versioned("src/lib", "poverty_cumulation")
+cohort_dat <- add_cumulation(cohort_dat)
+}   # cumulation
 
 
 #### DELETE OBSERVATIONS IF OUTCOMES ARE MISSING ####
@@ -1693,8 +1663,9 @@ outcomes <- c("individual_income", "individual_income_perc", "hbo_attained", "wo
               "disposable_household_income_perc", "disposable_household_income",
               "primary_household_income_perc", "primary_household_income",
               "individual_earnings", "individual_earnings_perc", "top_20_household_income",
-              "bottom_20_household_income", "top_20_individual_income", "bottom_20_individual_income" #,
-              # "household_below_poverty"
+              "bottom_20_household_income", "top_20_individual_income", "bottom_20_individual_income",
+              "household_below_poverty", "cum_educ_poverty", "cum_poverty_mhc", "cum_educ_mhc",
+              "cum_educ_poverty_mhc"
               )
 # c35_ for age35; c45_ and c55_ for the other samples
 suffix <- paste0("c", cfg$outcome_age, "_")
