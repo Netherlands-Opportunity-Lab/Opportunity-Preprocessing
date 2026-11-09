@@ -165,8 +165,10 @@ default:
     # versions available in RA. Coen used LANDAKTUEELREFV9, which is no longer in
     # RA (06-11-2026: only V12 and V15, in folder `geconverteerdedata`); V15 is used.
     catch_land_etngrp_file: "K:/Utilities/Code_Listings/SSBreferentiebestanden/geconverteerdedata/LANDAKTUEELREFV15.dta"
-    catch_oplnr_ref_file:   "K:/Utilities/Code_Listings/SSBreferentiebestanden/Geconverteerde data/OPLEIDINGSNRREFV24.dta"
-    catch_cto_ref_file:     "K:/Utilities/Code_Listings/SSBreferentiebestanden/Geconverteerde data/CTOREFV8.dta"
+    # Coen used OPLEIDINGSNRREFV24 and CTOREFV8, which are no longer in RA
+    # (09-11-2026); the versions below are the ones prim8_b and newborns use.
+    catch_oplnr_ref_file:   "K:/Utilities/Code_Listings/SSBreferentiebestanden/OPLEIDINGSNRREFV36.SAV"
+    catch_cto_ref_file:     "K:/Utilities/Code_Listings/SSBreferentiebestanden/CTOREFV13.SAV"
 
   pipeline:
     # The steps P_2_1_run_all.R runs for the JGZ (each reads the previous step's
