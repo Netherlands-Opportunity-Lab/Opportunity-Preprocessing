@@ -85,7 +85,7 @@ default:
     gbaao_data: "Bevolking/GBAADRESOBJECTBUS/geconverteerde data/GBAADRESOBJECT2024BUSV1.db"
     # KINDOUDER: the person's own children, for young_parents (as age35). Only the
     # person's children are used; there is no link to the person's parents.
-    kind_data: "Bevolking/KINDOUDERTAB/KINDOUDER2024TABV1.sav"
+    kind_data: "Bevolking/KINDOUDERTAB/geconverteerde data/KINDOUDER2025TABV2.db"
     # INHARMATAB (household income vs the poverty line, from 2018), for poverty and
     # cumulation (as age35)
     poverty_data: "InkomenBestedingen/INHARMATAB/"
@@ -93,9 +93,9 @@ default:
     # 'geconverteerde data' next to the .sav
     spolis_db_folder: ""
     secm_data: "InkomenBestedingen/SECMBUS/geconverteerde data/SECMBUS2024V1.db"
-    woon_data: "BouwenWonen/LEVCYCLWOONNIETWOONBUS/LEVCYCLWOONNIETWOONBUSV2024122.sav"
+    woon_data: "BouwenWonen/LEVCYCLWOONNIETWOONBUS/geconverteerde data/LEVCYCLWOONNIETWOONBUSV2025123.db"
     # regions of the current address (as age35_current_address)
-    postcode_data: "BouwenWonen/VSLPOSTCODEBUS/VSLPOSTCODEBUSV2025031.sav"
+    postcode_data: "BouwenWonen/VSLPOSTCODEBUS/geconverteerde data/VSLPOSTCODEBUSV2026031.db"
     vslgwb_data: "BouwenWonen/VSLGWBTAB/VSLGWB2025TAB03V1.sav"
 
     # resources

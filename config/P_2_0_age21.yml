@@ -1,8 +1,4 @@
 # Files that have a converted SQLite version point to that .db (read with read_cbs(), see src/sql_helpers.R).
-# Still .sav (no .db of exactly this version yet):
-#   Bevolking/KINDOUDERTAB/KINDOUDER2024TABV1.sav
-#   BouwenWonen/VSLPOSTCODEBUS/VSLPOSTCODEBUSV2025031.sav
-# read_cbs() reads these with read_sav() and filters in R. Pointing them to a .db is a config change only.
 default:
   data_preparation:
     # The name of the cohort
@@ -78,8 +74,8 @@ default:
    # path to the cbs microdata
     gba_data: "Bevolking/GBAPERSOONTAB/2024/geconverteerde data/GBAPERSOON2024TABV3.db"
     gbaao_data: "Bevolking/GBAADRESOBJECTBUS/geconverteerde data/GBAADRESOBJECT2024BUSV1.db"
-    kind_data: "Bevolking/KINDOUDERTAB/KINDOUDER2024TABV1.sav"
-    postcode_data: "BouwenWonen/VSLPOSTCODEBUS/VSLPOSTCODEBUSV2025031.sav"
+    kind_data: "Bevolking/KINDOUDERTAB/geconverteerde data/KINDOUDER2025TABV2.db"
+    postcode_data: "BouwenWonen/VSLPOSTCODEBUS/geconverteerde data/VSLPOSTCODEBUSV2026031.db"
     vslgwb_data: "BouwenWonen/VSLGWBTAB/geconverteerde data/VSLGWB2025TAB03V1.db"
     household_data: "Bevolking/GBAHUISHOUDENSBUS/Geconverteerde bestanden/GBAHUISHOUDENS2024BUSV1.db"
 

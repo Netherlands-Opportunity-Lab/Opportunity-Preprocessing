@@ -34,9 +34,9 @@ default:
     # cohort file is read from here too
     output_folder: "output"
 
-    # path to the cbs microdata (the versions the intragenerational analysis used)
+    # path to the cbs microdata
     gbaao_data: "Bevolking/GBAADRESOBJECTBUS/GBAADRESOBJECT2024BUSV1.sav"
-    postcode_data: "BouwenWonen/VSLPOSTCODEBUS/VSLPOSTCODEBUSV2025031.sav"
+    postcode_data: "BouwenWonen/VSLPOSTCODEBUS/geconverteerde data/VSLPOSTCODEBUSV2026031.db"
     vslgwb_data: "BouwenWonen/VSLGWBTAB/VSLGWB2025TAB03V1.sav"
 
     # resources
