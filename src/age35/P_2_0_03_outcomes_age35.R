@@ -432,6 +432,22 @@ get_inpa_filename <- function(year) {
 }
 
 
+# INPPERSPRIM is text in at least one INPA file and numeric in the others.
+# Text "no observed income" and empty values become NA; anything else that is
+# not a number stops the run, so a format problem can't silently create NAs.
+earnings_as_number <- function(x, year) {
+  if (!is.character(x)) return(x)
+  no_income <- "Behoort tot een huishouden zonder waargenomen inkomen"
+  x <- trimws(x)
+  out <- suppressWarnings(as.numeric(x))
+  unexpected <- unique(x[is.na(out) & !is.na(x) & x != "" & x != no_income])
+  if (length(unexpected) > 0) {
+    stop("INPPERSPRIM ", year, " has unexpected text values: ",
+         paste(utils::head(unexpected, 5), collapse = "; "))
+  }
+  out
+}
+
 income_children <- data.frame()
 
 for (year in seq(as.integer(cfg$child_income_year_min), as.integer(cfg$child_income_year_max))) {
@@ -459,11 +475,8 @@ for (year in seq(as.integer(cfg$child_income_year_min), as.integer(cfg$child_inc
                                                        "INPPERSBRUT", "INPPERSPRIM")) %>%
       rename(individual_income = INPPERSBRUT,
              individual_earnings = INPPERSPRIM) %>%
-      mutate(RINPERSOONS = as_factor(RINPERSOONS, levels = "value")
-             # ,
-             # individual_earnings = ifelse(individual_earnings == "Behoort tot een huishouden zonder waargenomen inkomen", NA, individual_earnings),
-             # individual_earnings = as.double(individual_earnings)
-             ) %>%
+      mutate(RINPERSOONS = as_factor(RINPERSOONS, levels = "value"),
+             individual_earnings = earnings_as_number(individual_earnings, year)) %>%
       # select only incomes of children
       filter(RINPERSOON %in% cohort_dat$RINPERSOON) %>%
       # add year
