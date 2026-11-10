@@ -1,28 +1,49 @@
 # JGZ preprocessing -- shared helpers
 #
-# Sourced at the top of every script in src/jgz. Loads the configuration and
-# defines helpers used in more than one script.
+# Sourced at the top of every script in src/jgz and src/jgz_catchment. Loads
+# the configuration and defines helpers used in more than one script.
 #
-# Compatibility: CBS Remote Access runs R 3.6.2 with dplyr 1.0.2. So: no `|>`
-# pipe, no `\(x)` lambdas, no dplyr::join_by()/if_any()/pick() and no
-# `relationship =` argument in joins. The helpers below use base R where
-# speed matters (the health file has ~1 million rows).
+# Two samples use these helpers, each with its own config (as every cohort):
+#   config/jgz.yml            the JGZ cohort: children with JGZ measurements
+#   config/jgz_catchment.yml  the catchment sample for bereik (take-up)
+# When run by P_2_1_run_cohort.R, `run_config_file` names the config; a script
+# sourced on its own sets `jgz_config_file` first (src/jgz_catchment does) or
+# gets config/jgz.yml.
+#
+# Compatibility: written for R 3.6.2 with dplyr 1.0.2 (the RA versions until
+# Oct 2026), so it also runs on the current R 4.5.3: no `|>` pipe, no `\(x)`
+# lambdas, no dplyr::join_by()/if_any()/pick() and no `relationship =` in
+# joins. The helpers below use base R where speed matters (the health file has
+# ~1 million rows).
+#
+# The CBS readers here are called read_cbs_jgz() / read_db_jgz(), so they do
+# not replace read_cbs() from src/lib/sql_helpers.R, which the runner loads and
+# the shared predictor step (src/newborns/02_predictors_newborns) uses.
 
 suppressPackageStartupMessages({
   library(dplyr)
   library(haven)
 })
 
-if (!file.exists("config/jgz.yml")) {
-  stop("config/jgz.yml not found. Run the JGZ scripts from the repository root ",
+if (!exists("jgz_config_file")) {
+  jgz_config_file <- if (exists("run_config_file")) run_config_file else "config/jgz.yml"
+}
+if (!file.exists(jgz_config_file)) {
+  stop(jgz_config_file, " not found. Run the JGZ scripts from the repository root ",
        "(setwd() to the Opportunity-Preprocessing folder first).")
 }
-loc <- config::get("file_locations", file = "config/jgz.yml")
-cfg <- config::get("settings",       file = "config/jgz.yml")
+loc <- config::get("file_locations",   file = jgz_config_file)
+cfg <- config::get("data_preparation", file = jgz_config_file)
+# temp/<cohort> and output/ (the runner creates them too; here for scripts
+# sourced on their own)
+for (jgz_dir in c(loc$temp_folder, loc$output_folder)) {
+  if (!dir.exists(jgz_dir)) dir.create(jgz_dir, recursive = TRUE)
+}
+rm(jgz_dir)
 
 # Paths inside the working folder and the CBS microdata folder
 work_path <- function(...) file.path(loc$work_folder, ...)
-cbs_path  <- function(...) file.path(loc$data_folder, ...)
+jgz_cbs_path <- function(...) file.path(loc$data_folder, ...)
 
 ensure_dir <- function(path) {
   if (!dir.exists(path)) dir.create(path, recursive = TRUE)
@@ -93,10 +114,10 @@ month_idx <- function(d) as.integer(format(d, "%Y")) * 12L + as.integer(format(d
 #'                  columns are skipped, like any_of())
 #' @param filter_in named list: column -> allowed values; each element is
 #'                  applied separately, like filter(a %in% x & b %in% y)
-read_cbs <- function(file, cols = NULL, filter_in = NULL) {
-  path <- if (grepl("^([A-Za-z]:|/)", file)) file else cbs_path(file)
+read_cbs_jgz <- function(file, cols = NULL, filter_in = NULL) {
+  path <- if (grepl("^([A-Za-z]:|/)", file)) file else jgz_cbs_path(file)
   if (grepl("\\.db$", path, ignore.case = TRUE)) {
-    return(read_db(path, cols = cols, filter_in = filter_in))
+    return(read_db_jgz(path, cols = cols, filter_in = filter_in))
   }
   dat <- if (is.null(cols)) read_sav(path) else
     read_sav(path, col_select = matches(paste0("^(", paste(cols, collapse = "|"), ")$"),
@@ -108,14 +129,14 @@ read_cbs <- function(file, cols = NULL, filter_in = NULL) {
   dat
 }
 
-# read_db(): adapted from src/lib/sql_helpers.R (ODISSEI Social Data
+# read_db_jgz(): adapted from src/lib/sql_helpers.R (ODISSEI Social Data
 # Science team 2026). Opens the .db read-only; ID filters go into TEMP tables
 # and are applied inside SQLite; rows come back in file order (ORDER BY rowid)
 # and value labels from the `value_labels` table are re-attached, so the result
 # looks like read_sav(). Differences: column names are matched
 # case-insensitively, and it stops if an ID column comes back as a number
 # (leading zeros lost).
-read_db <- function(path, cols = NULL, filter_in = NULL) {
+read_db_jgz <- function(path, cols = NULL, filter_in = NULL) {
   if (!requireNamespace("RSQLite", quietly = TRUE) || !requireNamespace("DBI", quietly = TRUE)) {
     stop("Packages DBI and RSQLite are needed to read ", basename(path),
          ". Install them, or point this file to its .sav in config/jgz.yml.")
@@ -162,7 +183,7 @@ read_db <- function(path, cols = NULL, filter_in = NULL) {
   if ("value_labels" %in% DBI::dbListTables(con)) {
     lab <- DBI::dbReadTable(con, "value_labels")
     if (nrow(lab) > 0) {
-      lc <- .label_cols(lab)
+      lc <- .label_cols_jgz(lab)
       for (col in intersect(unique(lab[[lc["var"]]]), names(dat))) {
         l <- lab[lab[[lc["var"]]] == col, ]
         codes <- l[[lc["value"]]]
@@ -179,7 +200,7 @@ read_db <- function(path, cols = NULL, filter_in = NULL) {
 
 # Column names of the `value_labels` table (variable, value, label), detected
 # as in src/lib/sql_helpers.R; set options(sqlexp.label_cols = c(...)) if that fails.
-.label_cols <- function(lab) {
+.label_cols_jgz <- function(lab) {
   opt <- getOption("sqlexp.label_cols")
   if (!is.null(opt)) return(setNames(opt, c("var", "value", "label")))
   nms <- names(lab)
@@ -206,7 +227,7 @@ read_db <- function(path, cols = NULL, filter_in = NULL) {
 read_addresses <- function(rins) {
   cols <- c("RINPERSOONS", "RINPERSOON", "GBADATUMAANVANGADRESHOUDING",
             "GBADATUMEINDEADRESHOUDING", "SOORTOBJECTNUMMER", "RINOBJECTNUMMER")
-  read_cbs(loc$gba_adres_file, cols = cols, filter_in = list(RINPERSOON = rins)) %>%
+  read_cbs_jgz(loc$gba_adres_file, cols = cols, filter_in = list(RINPERSOON = rins)) %>%
     rename_with(toupper) %>%
     transmute(RINPERSOONS = as_chr(RINPERSOONS), RINPERSOON = as_chr(RINPERSOON),
               start = ymd_date(GBADATUMAANVANGADRESHOUDING),
@@ -220,7 +241,7 @@ read_addresses <- function(rins) {
 read_postcodes <- function(objects) {
   cols <- c("SOORTOBJECTNUMMER", "RINOBJECTNUMMER", "DATUMAANVPOSTCODENUMADRES",
             "DATUMEINDPOSTCODENUMADRES", "POSTCODENUM")
-  read_cbs(loc$vslpostcode_file, cols = cols,
+  read_cbs_jgz(loc$vslpostcode_file, cols = cols,
            filter_in = list(RINOBJECTNUMMER = sub("^[^ ]* ", "", objects))) %>%
     rename_with(toupper) %>%
     mutate(soortobjectnummer = as_chr(SOORTOBJECTNUMMER), rinobjectnummer = as_chr(RINOBJECTNUMMER)) %>%

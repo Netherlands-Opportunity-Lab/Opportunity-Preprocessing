@@ -1,5 +1,5 @@
 # =============================================================================
-# JGZ pilot -- 00. Clean and merge
+# JGZ cohort -- 01a. Clean and merge
 #
 # R translation of the Stata do-file "20220330 JGZ DATA - CLEAN AND MERGE".
 # Checked (2026-10-23) against the full "20200908 JGZ DATA - CLEAN AND MERGE"

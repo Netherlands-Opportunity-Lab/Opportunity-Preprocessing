@@ -1,0 +1,156 @@
+# Configuration for the JGZ catchment sample: children who lived in the
+# catchment area of one JGZ organisation at the 2y, 3y and 3y9m contact
+# moments, whether the JGZ saw them or not. The bereik (take-up) outcomes are
+# made from this sample. Coen's dataset Data_CatchmentArea_3pooled_withvariables
+# is still written as well (.dta), because the bereik regression do-file and
+# the descriptives script read it.
+#
+# Needs the JGZ panel from step 01a of config/jgz.yml (panel_file below).
+# Run from the repository root:
+#   Rscript P_2_1_run_all.R jgz_catchment
+#   Rscript src/lib/P_2_1_run_cohort.R jgz_catchment 05   # the coverage check (optional)
+# Output: output/jgz_catchment_cohort.rds.
+
+default:
+  data_preparation:
+    cohort_name: "jgz_catchment"
+
+    # --- 01_cohort_jgz_catchment.R ------------------------------------------------
+    # Rebuilds Data_CatchmentArea_3pooled_withvariables (Coen, Sept 2020) for
+    # the bereik analyses. First reconstructed without Coen's do-files; on
+    # 2026-10-23 checked against "20200916 SAMPLE SELECTION", "20200916 PREPARE
+    # CHILD AND FAMILY CHARACTERISTICS" and "20200913 ANALYSIS 3 CONTACT
+    # MOMENTS". The defaults below follow those do-files.
+    #
+    # Children born in this range are candidates (Coen: 2005-2018); the
+    # cohort rule below narrows this down per organisation.
+    catch_birth_date_min: "2005-01-01"
+    catch_birth_date_max: "2018-12-31"
+    # Contact-moment windows in completed months of age (calendar months since
+    # the birth month, like Coen's %tm variables) -- as in SAMPLE SELECTION.
+    catch_cm_windows:
+      2y:   [22, 33]
+      3y:   [34, 43]
+      3y9m: [44, 53]
+    # A child is in the sample when he/she lives continuously in the catchment
+    # area of ONE organisation during the whole window (first to last month
+    # above). Address spells that follow each other within this many months
+    # count as continuous (1 = next spell starts in the same or next month;
+    # Coen: "remove flag for records that start 1 month later").
+    catch_max_gap_months: 1
+    # An area counts until its `einde` in the PC4 file. Coen did not use
+    # `aanvang` (FALSE); TRUE also requires the window to start after it.
+    catch_use_aanvang: FALSE
+    # TRUE: an area also stops counting after the last contact month of that
+    # organisation in the JGZ panel. Coen used the cohort rule instead (FALSE).
+    catch_use_data_end: FALSE
+    # Birth cohorts per organisation ("coen" or "none"): per organisation the
+    # share of children observed per birth month; first cohort = first month
+    # with a drop in that share while above catch_cohort_min_share (2y window),
+    # last cohort = last month with a rise while above it (3y9m window).
+    catch_cohort_rule: "coen"
+    catch_cohort_min_share: 0.8
+    # Left out when computing the shares (Coen: Verian without Apeldoorn,
+    # which is not in the data). The regression do-file drops Apeldoorn.
+    catch_cohort_exclude:
+      org: 10
+      gemeente: ["Apeldoorn"]
+    # Corrections to the PC4 file (Coen: Verian's 8080 is 8180; 8080 is
+    # otherwise listed for both Verian and org12)
+    catch_pc4_corrections:
+      - {org: 10, from: 8080, to: 8180}
+    # "Observed" at a contact moment = at least one row in the JGZ panel (one
+    # row = at least one recorded item) with an age within the window, any
+    # organisation (as Coen). TRUE: only the catchment organisation itself.
+    catch_observed_same_org: FALSE
+    # Reference age for the "cm_" variables (income, household income, health
+    # costs, addresses of child and parents, postcode_4): 36 months, as in
+    # ANALYSIS 3 CONTACT MOMENTS (local age_months=36).
+    catch_reference_age_months: 36
+    # Year of the education file (HOOGSTEOPLTAB) for the parents (Coen: 2018)
+    catch_education_year: 2018
+    # Columns to keep from HOOGSTEOPLTAB (missing ones are skipped with a message)
+    catch_education_cols: [OPLNRHB, OPLNRHG, OPLNIVSOI2016AGG4HBMETNIRWO,
+                           OPLNIVSOI2016AGG4HGMETNIRWO, RICHTPLTSHBMETNIRWO, GEWICHTHOOGSTEOPL]
+    # Health costs as in Coen's PREPARE do-file: total = sum of these columns
+    # (missing = 0); mental care = any of the second list not 0
+    catch_health_cost_cols: [ZVWKHUISARTS, ZVWKFARMACIE, ZVWKMONDZORG, ZVWKZIEKENHUIS,
+                             ZVWKPARAMEDISCH, ZVWKHULPMIDDEL, ZVWKZIEKENVERVOER, ZVWKGEBOORTEZORG,
+                             ZVWKBUITENLAND, ZVWKOVERIG, ZVWKEERSTELIJNSPSYCHO, ZVWKGGZ,
+                             ZVWKGENBASGGZ, ZVWKSPECGGZ, ZVWKGERIATRISCH, ZVWKWYKVERPLEGING]
+    catch_mental_care_cols: [ZVWKEERSTELIJNSPSYCHO, ZVWKGGZ, ZVWKGENBASGGZ, ZVWKSPECGGZ,
+                             NOPZVWKGGZMV, NOPZVWKGGZZVINST, NOPZVWKGGZZVZELF, NOPZVWKGGZOVERIG]
+
+    # --- 03_outcomes_jgz_catchment.R ----------------------------------------------
+    # Bereik outcomes (y_m<age>_takeup, y_m45_takeup_always, y_m45_takeup_any)
+    # from the "observed" flags of 01, per contact moment with the same
+    # denominator (27-10-2026). Ages in months of the three windows above.
+    takeup_ages: {m24: "2y", m36: "3y", m45: "3y9m"}
+
+    # --- 05_coverage_per_pc4.R (optional) -----------------------------------------
+    # Coverage (bereik) per PC4 in the JGZ data, to check the catchment areas
+    # (Bastian, 27-10-2026). Uses catch_birth_date_min/max, catch_cm_windows and
+    # catch_pc4_corrections above.
+    # Age in months at which the child's address (PC4) is taken, per contact
+    # moment (the nominal age of the visit)
+    cov_reference_months:
+      2y:   24
+      3y:   36
+      3y9m: 45
+    # Calendar years (of that month) included: "data" = first to last year with
+    # a contact in the JGZ panel; or a range, e.g. [2010, 2018]
+    cov_years: "data"
+    # A PC4 that is not in the PC4 file is listed when its coverage is above this
+    # share at one or more contact moments, with at least this many children
+    cov_flag_min_coverage: 0.20
+    cov_flag_min_children: 10
+
+  file_locations:
+    temp_folder: "temp/jgz_catchment"
+    output_folder: "output"
+    # Working folder (as config/jgz.yml)
+    work_folder: "H:/JGZ-Pilot-Data"
+
+    # The JGZ panel, output of step 01a of config/jgz.yml
+    panel_file: "H:/JGZ-Panel-Data/JGZ_panel.rds"
+
+    # 01: Stata file with the variable names of Coen's dataset (read by the
+    # bereik regression do-file), plus an .rds copy and a flow table
+    catch_sample_file: "H:/JGZ-Pilot-Data/Data_CatchmentArea_3pooled_withvariables_R.dta"
+    # 05: coverage per PC4 x contact moment (internal: small counts, not for export)
+    coverage_file: "H:/JGZ-Pilot-Data/coverage_per_pc4.xlsx"
+
+    # --- CBS microdata (as config/jgz.yml) ----------------------------------------
+    # Yearly files (INPA, IPI, INHA, HOOGSTEOPL, ZVWZORGKOSTEN) are found below
+    # data_folder, latest version per year.
+    data_folder:      "G:/"
+    gba_persoon_file: "Bevolking/GBAPERSOONTAB/2024/geconverteerde data/GBAPERSOON2024TABV3.db"
+    gba_adres_file:   "Bevolking/GBAADRESOBJECTBUS/geconverteerde data/GBAADRESOBJECT2024BUSV1.db"
+    vslpostcode_file: "BouwenWonen/VSLPOSTCODEBUS/geconverteerde data/VSLPOSTCODEBUSV2026031.db"
+    kindouder_file:   "Bevolking/KINDOUDERTAB/geconverteerde data/KINDOUDER2025TABV2.db"
+
+    # --- reference files ------------------------------------------------------------
+    # PC4 -> organisation with coverage dates (org, gemeente, postcode_4, aanvang, einde)
+    catch_pc4_org_file:     "resources/jgz_pc4gebieden.csv"
+    # Country -> western / non-western (fallback for ETNGRP)
+    catch_land_ref_file:    "resources/LANDAKTUEELREF10.sav"
+    # CBS reference files used by Coen. When they exist, ETNGRP and
+    # pa_/ma_ISCED2011LevelHB are built exactly as in his do-files; otherwise
+    # ETNGRP comes from the fallback above and ISCED stays empty. Coen used
+    # LANDAKTUEELREFV9, which is no longer in RA (06-11-2026: only V12 and V15,
+    # in folder `geconverteerdedata`); V15 is used.
+    catch_land_etngrp_file: "K:/Utilities/Code_Listings/SSBreferentiebestanden/geconverteerdedata/LANDAKTUEELREFV15.dta"
+    # Coen used OPLEIDINGSNRREFV24 and CTOREFV8, which are no longer in RA
+    # (09-11-2026); the versions below are the ones prim8_b and newborns use.
+    catch_oplnr_ref_file:   "K:/Utilities/Code_Listings/SSBreferentiebestanden/OPLEIDINGSNRREFV36.SAV"
+    catch_cto_ref_file:     "K:/Utilities/Code_Listings/SSBreferentiebestanden/CTOREFV13.SAV"
+
+  pipeline:
+    script_dir: "src/jgz_catchment"
+    scripts: ["01_cohort_jgz_catchment", "03_outcomes_jgz_catchment"]
+    # only when asked for by step number: Rscript src/lib/P_2_1_run_cohort.R jgz_catchment 05
+    optional_scripts: ["05_coverage_per_pc4"]
+
+  final_checks:
+    expected_columns: ["y_m24_takeup", "y_m36_takeup", "y_m45_takeup", "y_m45_takeup_always",
+                       "y_m45_takeup_any", "org_catchment", "postcode_4"]

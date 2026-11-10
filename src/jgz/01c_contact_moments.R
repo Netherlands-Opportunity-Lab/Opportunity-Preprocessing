@@ -1,17 +1,18 @@
 # =============================================================================
-# JGZ preprocessing -- 02. Contact moments and derived variables
+# JGZ cohort -- 01c. Contact moments and derived variables
 #
 # Assigns every row of the panel (child x age) to a scheduled JGZ visit
 # ("contact moment") and adds the variables the analyses use: BMI, sex, PC3
 # and PC4 of the GBA address and the target age of the visit.
 #
-#   Input : loc$panel_postcode_file (output of 01)
+#   Input : loc$panel_postcode_file (output of 01b)
 #   Output: loc$contact_moment_folder/cm_<visit>.rds (one file per visit, all
 #           rows of the panel in that window)
 #
 # Which measurement to use when a child has several in a window is decided per
-# outcome in the analyses: the one closest to `target_age`, the nominal age of
-# the visit.
+# outcome in 03_outcomes_jgz.R: the one closest to the nominal age of the visit
+# (`target_age`). The map tables in Opportunity-Analysis-Map/JGZ still read
+# these files too.
 #
 # Run from the repository root.
 # =============================================================================

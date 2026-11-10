@@ -1,5 +1,5 @@
 # =============================================================================
-# JGZ preprocessing -- 04. Coverage (bereik) per PC4, to check the catchment areas
+# JGZ catchment sample -- 05 (optional). Coverage (bereik) per PC4, to check the catchment areas
 #
 # Agreed with Bastian on 27-10-2026 ("Kloppen de verzorgingsgebieden?"):
 #   1. compute the coverage for every PC4 that occurs in the JGZ data, per
@@ -10,7 +10,7 @@
 #      time: 50% may mean 0% in half of the years and 100% in the other half);
 #   4. decide together whether to add them (not done here).
 #
-# Definitions (settings cov_* in config/jgz.yml):
+# Definitions (settings cov_* in config/jgz_catchment.yml):
 #   - Children: everyone in GBA born in the birth-date range of 03
 #     (catch_birth_date_min/max), in all of the Netherlands.
 #   - PC4 of a child at a contact moment: the PC4 of his/her GBA address in the
@@ -37,12 +37,15 @@
 # INTERNAL ONLY: the sheets contain small counts and per-organisation counts
 # (including org 12). Not for export.
 #
-# Run from the repository root, after 00 (03 is not needed):
-#   setwd("H:/Opportunity-Preprocessing"); source("src/jgz/04_coverage_per_pc4.R")
+# Run from the repository root, after step 01a of the jgz cohort (01 of the catchment sample is not needed):
+#   Rscript src/lib/P_2_1_run_cohort.R jgz_catchment 05
+#   or: setwd("H:/Opportunity-Preprocessing"); source("src/jgz_catchment/05_coverage_per_pc4.R")
 # Reads the addresses of all children in the birth-date range (like 03), so it
 # takes a while.
 # =============================================================================
 
+# own config (config/jgz_catchment.yml); the runner passes it as run_config_file
+jgz_config_file <- if (exists("run_config_file")) run_config_file else "config/jgz_catchment.yml"
 source("src/jgz/jgz_helpers.R")
 suppressPackageStartupMessages(library(openxlsx))
 options(scipen = 999)
@@ -58,7 +61,7 @@ stopifnot(setequal(names(windows), names(ref_age)))
 
 birth_years <- seq(as.integer(format(as.Date(cfg$catch_birth_date_min), "%Y")),
                    as.integer(format(as.Date(cfg$catch_birth_date_max), "%Y")))
-kids <- read_cbs(loc$gba_persoon_file,
+kids <- read_cbs_jgz(loc$gba_persoon_file,
                  cols = c("RINPERSOONS", "RINPERSOON", "GBAGEBOORTEJAAR",
                           "GBAGEBOORTEMAAND", "GBAGEBOORTEDAG"),
                  filter_in = list(GBAGEBOORTEJAAR = birth_years)) %>%

@@ -358,10 +358,10 @@ Approximate time needed to reproduce the analyses on a standard (2025) desktop m
 | Folder / file | Contents |
 |---|---|
 | `P_2_1_run_all.R` | The one script that builds every cohort file, start to finish |
-| `config/` | One `.yml` per cohort (and `jgz.yml`): all paths, settings and the list of scripts to run. Paths are never hard-coded in scripts |
+| `config/` | One `.yml` per cohort (including `jgz.yml` and `jgz_catchment.yml`): all paths, settings and the list of scripts to run. Paths are never hard-coded in scripts |
 | `src/<sample>/` | The pipeline steps. Variants that share code share scripts: `src/prim8/` serves `prim8_a` and `prim8_b`, `src/newborns/` the four newborn samples, `src/current_address/` (with `src/age35/03_outcomes_age35.R`) `age45_current_address` and `age55_current_address`. A script name in a config may include a folder relative to `script_dir` |
 | `src/lib/` | Shared helpers: running the pipeline and logging (`run_helpers`, `run_cohort`), key and final-file checks (`checks`), SQLite reading (`sql_helpers`), diagnostics (`function_kansenkaart_preprocessing`) |
-| `src/jgz/` | The youth health care (JGZ) preprocessing, see `src/jgz/README.md` |
+| `src/jgz/`, `src/jgz_catchment/` | The youth health care (JGZ) cohorts: children with JGZ measurements, and the catchment sample for bereik; see `src/jgz/README.md` |
 | `resources/` | Small auxiliary files (CPI, region tables, code lists) |
 | `tests/` | Checks that need no CBS data: `Rscript tests/run_tests.R` |
 | `input/`, `temp/`, `output/` | Not in git. `temp/<cohort>/` holds the intermediate file of each step, `output/` the final `<cohort>_cohort.rds` files and `output/logs/` |
@@ -384,10 +384,10 @@ Open `kansenkaart_preprocessing.Rproj` (so the working directory is the reposito
 ```
 Rscript P_2_1_run_all.R                    # all samples
 Rscript P_2_1_run_all.R prim8_a prim8_b    # only these samples
-Rscript P_2_1_run_all.R jgz                # the JGZ preprocessing (project 8151 files)
+Rscript P_2_1_run_all.R jgz jgz_catchment  # the JGZ cohorts (project 8151 files)
 ```
 
-Samples: `newborns_a_perinatal`, `newborns_b_perinatal`, `newborns_a_mortality`, `newborns_b_mortality`, `prim8_a`, `prim8_b`, `age16`, `age21`, `age35` and `jgz`.
+Samples: `newborns_a_perinatal`, `newborns_b_perinatal`, `newborns_a_mortality`, `newborns_b_mortality`, `prim8_a`, `prim8_b`, `age16`, `age21`, `age35`, `jgz` and `jgz_catchment`.
 
 `age35_current_address` is derived from `age35` (run that first): the same people with their regions at the address at age 35, the Amsterdam stadsdelen and gebieden, and the categorical outcomes of the intragenerational analysis, for which it is the input. It needs `resources/import_amsterdam_areas.xlsx` (in the RA: copy it from the intragenerational `Data/Help` folder).
 

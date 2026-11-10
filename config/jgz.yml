@@ -1,14 +1,22 @@
-# Configuration for the JGZ (youth health care) preprocessing in src/jgz.
+# Configuration for the JGZ (youth health care) cohort: children with JGZ
+# measurements (project 8151), one row per child, with the JGZ outcomes per age.
 #
-# All scripts in src/jgz are run from the repository root, e.g.
-#   setwd("H:/Opportunity-Preprocessing"); source("src/jgz/00_clean_and_merge.R")
-# and read this file with config::get(). Change paths here, not in the scripts.
-# The analysis and export scripts (map tables, gradients, export bundle) are
-# in Opportunity-Analysis-Map/JGZ with their own config.
+# Run like every other cohort, from the repository root:
+#   Rscript P_2_1_run_all.R jgz                       # all steps
+#   Rscript src/lib/P_2_1_run_cohort.R jgz 03 04      # only steps 03 and 04
+# The steps (01a-d cohort, 02 predictors, 03 outcomes, 04 postprocessing) are
+# listed under `pipeline` below. Output: output/jgz_cohort.rds.
+#
+# The catchment sample for the bereik (take-up) outcomes is a separate cohort
+# with its own config: config/jgz_catchment.yml. The analysis and export
+# scripts (map tables, gradients, export bundle) are in
+# Opportunity-Analysis-Map/JGZ with their own config.
 
 default:
-  settings:
-    # --- 00_clean_and_merge.R -----------------------------------------------
+  data_preparation:
+    cohort_name: "jgz"
+
+    # --- 01a_clean_and_merge.R -----------------------------------------------
     # CBS stand-in hash for an empty child ID (confirmed with CBS, see Coen's
     # do-file). Rows in the ID file with this value are dropped. Set to "" to
     # disable.
@@ -21,92 +29,88 @@ default:
     # as intended. TRUE reproduces the Stata behaviour exactly.
     replicate_stata_string_fill: FALSE
 
-    # --- 03_build_catchment_sample.R ---------------------------------------------
-    # Rebuilds Data_CatchmentArea_3pooled_withvariables (Coen, Sept 2020) for
-    # the bereik analyses. First reconstructed without Coen's do-files; on
-    # 2026-10-23 checked against "20200916 SAMPLE SELECTION", "20200916 PREPARE
-    # CHILD AND FAMILY CHARACTERISTICS" and "20200913 ANALYSIS 3 CONTACT
-    # MOMENTS". The defaults below follow those do-files.
-    #
-    # Children born in this range are candidates (Coen: 2005-2018); the
-    # cohort rule below narrows this down per organisation.
-    catch_birth_date_min: "2005-01-01"
-    catch_birth_date_max: "2018-12-31"
-    # Contact-moment windows in completed months of age (calendar months since
-    # the birth month, like Coen's %tm variables) -- as in SAMPLE SELECTION.
-    catch_cm_windows:
-      2y:   [22, 33]
-      3y:   [34, 43]
-      3y9m: [44, 53]
-    # A child is in the sample when he/she lives continuously in the catchment
-    # area of ONE organisation during the whole window (first to last month
-    # above). Address spells that follow each other within this many months
-    # count as continuous (1 = next spell starts in the same or next month;
-    # Coen: "remove flag for records that start 1 month later").
-    catch_max_gap_months: 1
-    # An area counts until its `einde` in the PC4 file. Coen did not use
-    # `aanvang` (FALSE); TRUE also requires the window to start after it.
-    catch_use_aanvang: FALSE
-    # TRUE: an area also stops counting after the last contact month of that
-    # organisation in the JGZ panel. Coen used the cohort rule instead (FALSE).
-    catch_use_data_end: FALSE
-    # Birth cohorts per organisation ("coen" or "none"): per organisation the
-    # share of children observed per birth month; first cohort = first month
-    # with a drop in that share while above catch_cohort_min_share (2y window),
-    # last cohort = last month with a rise while above it (3y9m window).
-    catch_cohort_rule: "coen"
-    catch_cohort_min_share: 0.8
-    # Left out when computing the shares (Coen: Verian without Apeldoorn,
-    # which is not in the data). The regression do-file drops Apeldoorn.
-    catch_cohort_exclude:
-      org: 10
-      gemeente: ["Apeldoorn"]
-    # Corrections to the PC4 file (Coen: Verian's 8080 is 8180; 8080 is
-    # otherwise listed for both Verian and org12)
-    catch_pc4_corrections:
-      - {org: 10, from: 8080, to: 8180}
-    # "Observed" at a contact moment = at least one row in the JGZ panel (one
-    # row = at least one recorded item) with an age within the window, any
-    # organisation (as Coen). TRUE: only the catchment organisation itself.
-    catch_observed_same_org: FALSE
-    # Reference age for the "cm_" variables (income, household income, health
-    # costs, addresses of child and parents, postcode_4): 36 months, as in
-    # ANALYSIS 3 CONTACT MOMENTS (local age_months=36).
-    catch_reference_age_months: 36
-    # Year of the education file (HOOGSTEOPLTAB) for the parents (Coen: 2018)
-    catch_education_year: 2018
-    # Columns to keep from HOOGSTEOPLTAB (missing ones are skipped with a message)
-    catch_education_cols: [OPLNRHB, OPLNRHG, OPLNIVSOI2016AGG4HBMETNIRWO,
-                           OPLNIVSOI2016AGG4HGMETNIRWO, RICHTPLTSHBMETNIRWO, GEWICHTHOOGSTEOPL]
-    # Health costs as in Coen's PREPARE do-file: total = sum of these columns
-    # (missing = 0); mental care = any of the second list not 0
-    catch_health_cost_cols: [ZVWKHUISARTS, ZVWKFARMACIE, ZVWKMONDZORG, ZVWKZIEKENHUIS,
-                             ZVWKPARAMEDISCH, ZVWKHULPMIDDEL, ZVWKZIEKENVERVOER, ZVWKGEBOORTEZORG,
-                             ZVWKBUITENLAND, ZVWKOVERIG, ZVWKEERSTELIJNSPSYCHO, ZVWKGGZ,
-                             ZVWKGENBASGGZ, ZVWKSPECGGZ, ZVWKGERIATRISCH, ZVWKWYKVERPLEGING]
-    catch_mental_care_cols: [ZVWKEERSTELIJNSPSYCHO, ZVWKGGZ, ZVWKGENBASGGZ, ZVWKSPECGGZ,
-                             NOPZVWKGGZMV, NOPZVWKGGZZVINST, NOPZVWKGGZZVZELF, NOPZVWKGGZOVERIG]
+    # --- 01d_cohort_jgz.R ----------------------------------------------------
+    # Children in the JGZ panel born in this range form the cohort (the JGZ
+    # data cover registrations 2009-2018; Coen's samples: born 2005-2018).
+    child_birth_date_min: "01/01/2005"
+    child_birth_date_max: "31/12/2018"
 
-    # --- 04_coverage_per_pc4.R ---------------------------------------------------
-    # Coverage (bereik) per PC4 in the JGZ data, to check the catchment areas
-    # (Bastian, 27-10-2026). Uses catch_birth_date_min/max, catch_cm_windows and
-    # catch_pc4_corrections above.
-    # Age in months at which the child's address (PC4) is taken, per contact
-    # moment (the nominal age of the visit)
-    cov_reference_months:
-      2y:   24
-      3y:   36
-      3y9m: 45
-    # Calendar years (of that month) included: "data" = first to last year with
-    # a contact in the JGZ panel; or a range, e.g. [2010, 2018]
-    cov_years: "data"
-    # A PC4 that is not in the PC4 file is listed when its coverage is above this
-    # share at one or more contact moments, with at least this many children
-    cov_flag_min_coverage: 0.20
-    cov_flag_min_children: 10
+    # --- 02 predictors: src/newborns/02_predictors_newborns (shared) ------------
+    # The same predictor step as the newborn cohorts (decided 10-11-2026, so
+    # the JGZ kloof uses the same x-axis as the other products): parental
+    # income = the mother's household income in the year before birth and the
+    # year of birth, deflated to cpi_base_year and ranked WITHIN BIRTH YEAR
+    # (income_parents_perc); parental wealth in the birth year; migration
+    # background (third generation via the mother); household type at
+    # childhood_home_age (number of parents); parents' education.
+    # Income years must cover (first birth year - 1) to (last birth year).
+    cpi_base_year: 2024
+    parent_income_year_min: 2004
+    parent_income_year_max: 2018
+    parent_wealth_year_min: 2005
+    parent_wealth_year_max: 2018
+    # age (years) at which household type and parents' education are taken
+    # (0 = in the birth year, as the newborns)
+    childhood_home_age: 0
+
+    # --- 03_outcomes_jgz.R ------------------------------------------------------
+    # Outcome list: JGZ_outcomes_concept.xlsx (SharePoint, Background info
+    # preprocessing JGZ, 10-11-2026). Variable names y_m<age in months>_<outcome>;
+    # file names add the version prefix (Y_1_0_m24_bmi_p90). The bereik outcomes
+    # are in config/jgz_catchment.yml.
+    #
+    # One measurement per child per age: the one closest to the nominal age
+    # (outcome_target_days) among the contact moments listed for that age
+    # (decided 23-10-2026), per item when an age combines several items. The
+    # contact-moment windows are those of 01c_contact_moments.R.
+    outcome_target_days: {m24: 730, m36: 1095, m45: 1368, m60: 2190, m120: 3819, m162: 5140}
+
+    # BMI (y_m<age>_bmi, _bmi_p90, _bmi_p10). Outliers: |z| > bmi_z_max, z
+    # within age x sex, are set to missing (as the map tables). The p90 and
+    # p10 cut-offs are computed over all children measured at that age, so they
+    # are the same for every area (27-10-2026); within sex (TRUE) or boys and
+    # girls together (FALSE, as Coen) -- to confirm with Bastian.
+    bmi_ages: {m24: ["2years"], m36: ["3years"], m45: ["3years9m"],
+               m60: ["groep2"], m120: ["groep7"], m162: ["klas2"]}
+    bmi_z_max: 5
+    bmi_cutoffs_by_sex: TRUE
+
+    # Van Wiechen items, scored + / - / M (M = only reported by the parent).
+    # Two binary outcomes per item (Bastian, 20-10-2026):
+    #   y_m<age>_<item>_can     = + or M  (can, according to professional or parent)
+    #   y_m<age>_<item>_notseen = - or M  (not seen by the professional)
+    # Items without an M option (wiechen_no_m) get one outcome: y_m<age>_<item>
+    # = + (seen by the professional). y_m<age>_language_delay = at least one
+    # item of that age scored -.
+    # NB disclosure: _can and _notseen of one item together with N give all
+    # three categories; decide with Bastian which is exported.
+    wiechen_ages: {m24: ["18months", "2years"], m45: ["3years", "3years9m"]}
+    wiechen_items:
+      m24: {words2: "zin2w", bodyparts: "pop6"}
+      m45: {questions: "vragen1", intelligible: "verstaan2", questions2: "vragen2"}
+    wiechen_no_m: ["intelligible"]
+
+    # SDQ total score (y_m<age>_sdq<cutoff> = score >= cutoff). Scores above
+    # sdq_max are impossible (range 0-40) and set to missing.
+    sdq_ages: {m60: ["groep2"], m120: ["groep7"], m162: ["klas2"]}
+    sdq_cutoff: 11
+    sdq_max: 40
+
+    # Visus: y_m<age>_visus = 1 when the conclusion of the vision test (visus_c)
+    # is in visus_abnormal, 0 when it is in visus_normal, missing otherwise.
+    # Codebook: 1 voldoende, 2 twijfelachtig, 3 onvoldoende. Default:
+    # "afwijkend" = onvoldoende; twijfelachtig counts as not abnormal -- to confirm.
+    visus_ages: {m36: ["3years"], m45: ["3years9m"], m60: ["groep2"]}
+    visus_abnormal: ["3", "onvoldoende"]
+    visus_normal: ["1", "2", "voldoende", "twijfelachtig"]
 
   file_locations:
-    # --- raw JGZ files (00) --------------------------------------------------
+    # Intermediate files per step (01_cohort.rds, 02_predictors.rds, ...) and
+    # the final cohort file (output/jgz_cohort.rds), as for every cohort
+    temp_folder: "temp/jgz"
+    output_folder: "output"
+
+    # --- raw JGZ files (01a) --------------------------------------------------
     id_file:      "L:/8151mcuniekCBKV2.SAV"
     id_file_zonl: "L:/8151ZOrggroepOudeenNieuweLanduniekCBKV1.SAV"
     health_file:  "L:/8151GezondheidsbestandxV2CBKV1.SAV"
@@ -116,64 +120,57 @@ default:
     work_folder:        "H:/JGZ-Pilot-Data"
     descriptives_folder: "H:/JGZ-Pilot-Data/Descriptives Results"
 
-    # --- outputs, in pipeline order ------------------------------------------
-    # 00: one row per child (RIN) x age (leeftijd)
+    # --- outputs of 01a-01c (also read by config/jgz_catchment.yml and by the
+    # map tables in Opportunity-Analysis-Map/JGZ) --------------------------------
+    # 01a: one row per child (RIN) x age (leeftijd)
     panel_file: "H:/JGZ-Panel-Data/JGZ_panel.rds"
-    # 00, saved before any collapse: the cleaned health measurements (one row
+    # 01a, saved before any collapse: the cleaned health measurements (one row
     # per record, key measurement_id) and the cleaned ID file (child ID -> RIN),
     # so collapse and merge rules can be revisited without rerunning the cleaning
     measurements_file: "H:/JGZ-Panel-Data/JGZ_measurements_clean.rds"
     id_link_file: "H:/JGZ-Panel-Data/JGZ_id_link.rds"
-    # 01: panel plus GBA address and postcode at each contact moment
+    # 01b: panel plus GBA address and postcode at each contact moment
     panel_postcode_file: "H:/JGZ-Pilot-Data/jgz_gba_postcode_data.rds"
-    # 02: one .rds per contact moment (input of the map tables in
-    # Opportunity-Analysis-Map/JGZ) and the contact-moment windows
+    # 01c: one .rds per contact moment (input of 03 and of the map tables)
     contact_moment_folder: "H:/JGZ-Pilot-Data/contact_moments"
-    # 03: Stata file with the variable names of Coen's dataset (read by the
-    # bereik regression do-file), plus an .rds copy and a flow table
-    catch_sample_file: "H:/JGZ-Pilot-Data/Data_CatchmentArea_3pooled_withvariables_R.dta"
-    # 04: coverage per PC4 x contact moment (internal: small counts, not for export)
-    coverage_file: "H:/JGZ-Pilot-Data/coverage_per_pc4.xlsx"
 
-    # --- CBS microdata (01, 03) -------------------------------------------------
-    # Root of the CBS microdata; yearly files (INPA, IPI, INHA, HOOGSTEOPL,
-    # ZVWZORGKOSTEN) are found below it, latest version per year, as in the
-    # other pipelines of this repository. The address and postcode files must
-    # cover the latest contact date in the JGZ data.
-    # Same versions as the prim8_a/prim8_b pipelines (config/P_2_1_prim8_*.yml),
-    # since 23 Oct 2026; before: GBAPERSOON2023TABV1, GBAADRESOBJECT2023BUSV1,
-    # VSLPOSTCODEBUSV2025031, KINDOUDER2023TABV1.
-    # Read from the SQLite versions (.db, "geconverteerde data", as the other
-    # cohorts): only the rows needed are read. To read the .sav instead
-    # (slower, same result), use the .sav path, e.g.
-    # "Bevolking/GBAPERSOONTAB/2024/GBAPERSOON2024TABV3.sav". Reading a .db
-    # needs the R packages DBI and RSQLite.
+    # --- CBS microdata ------------------------------------------------------------
+    # Same versions as the prim8 and newborn pipelines, read from the SQLite
+    # versions (.db, "geconverteerde data"). To read a .sav instead (slower,
+    # same result), point to the .sav, e.g.
+    # "Bevolking/GBAPERSOONTAB/2024/GBAPERSOON2024TABV3.sav". The address and
+    # postcode files must cover the latest contact date in the JGZ data.
     data_folder:      "G:/"
+    # 01b, 01d (read with read_cbs_jgz() in src/jgz/jgz_helpers.R)
     gba_persoon_file: "Bevolking/GBAPERSOONTAB/2024/geconverteerde data/GBAPERSOON2024TABV3.db"
     gba_adres_file:   "Bevolking/GBAADRESOBJECTBUS/geconverteerde data/GBAADRESOBJECT2024BUSV1.db"
     vslpostcode_file: "BouwenWonen/VSLPOSTCODEBUS/geconverteerde data/VSLPOSTCODEBUSV2026031.db"
     kindouder_file:   "Bevolking/KINDOUDERTAB/geconverteerde data/KINDOUDER2025TABV2.db"
-
-    # --- reference files (03) -----------------------------------------------------
-    # PC4 -> organisation with coverage dates (org, gemeente, postcode_4, aanvang, einde)
-    catch_pc4_org_file:     "resources/jgz_pc4gebieden.csv"
-    # Country -> western / non-western (fallback for ETNGRP)
-    catch_land_ref_file:    "resources/LANDAKTUEELREF10.sav"
-    # CBS reference files used by Coen. When they exist, ETNGRP and
-    # pa_/ma_ISCED2011LevelHB are built exactly as in his do-files; otherwise
-    # ETNGRP comes from the fallback above and ISCED stays empty. Check the
-    # versions available in RA. Coen used LANDAKTUEELREFV9, which is no longer in
-    # RA (06-11-2026: only V12 and V15, in folder `geconverteerdedata`); V15 is used.
-    catch_land_etngrp_file: "K:/Utilities/Code_Listings/SSBreferentiebestanden/geconverteerdedata/LANDAKTUEELREFV15.dta"
-    # Coen used OPLEIDINGSNRREFV24 and CTOREFV8, which are no longer in RA
-    # (09-11-2026); the versions below are the ones prim8_b and newborns use.
-    catch_oplnr_ref_file:   "K:/Utilities/Code_Listings/SSBreferentiebestanden/OPLEIDINGSNRREFV36.SAV"
-    catch_cto_ref_file:     "K:/Utilities/Code_Listings/SSBreferentiebestanden/CTOREFV13.SAV"
+    # 02 (src/newborns/02_predictors_newborns, names as in the newborn configs)
+    gba_data:       "Bevolking/GBAPERSOONTAB/2024/geconverteerde data/GBAPERSOON2024TABV3.db"
+    household_data: "Bevolking/GBAHUISHOUDENSBUS/Geconverteerde bestanden/GBAHUISHOUDENS2024BUSV1.db"
+    cpi_index_data: "resources/Consumentenprijzen__prijsindex_2015_100_14112022_221558.xlsx"
+    opleiding_data: "K:/Utilities/Code_Listings/SSBreferentiebestanden/OPLEIDINGSNRREFV36.SAV"
+    cto_data:       "K:/Utilities/Code_Listings/SSBreferentiebestanden/CTOREFV13.SAV"
 
   pipeline:
-    # The steps P_2_1_run_all.R runs for the JGZ (each reads the previous step's
-    # output from disk, so a subset can be rerun: steps = c("02", "03")).
-    # optional_scripts only run when asked for by step number, e.g. steps = "04".
+    # The steps P_2_1_run_all.R runs for the JGZ cohort, in this order. Step 01
+    # has four parts (01a-01d); `Rscript src/lib/P_2_1_run_cohort.R jgz 01` runs
+    # all four. Step 02 is the predictor step of the newborn cohorts.
     script_dir: "src/jgz"
-    scripts: ["00_clean_and_merge", "01_add_gba_postcode", "02_contact_moments", "03_build_catchment_sample"]
-    optional_scripts: ["04_coverage_per_pc4"]
+    scripts: ["01a_clean_and_merge", "01b_add_gba_postcode", "01c_contact_moments", "01d_cohort_jgz",
+              "../newborns/02_predictors_newborns", "03_outcomes_jgz", "04_postprocessing_jgz"]
+
+  final_checks:
+    # Checked on output/jgz_cohort.rds at the end of the run (check_final_cohort())
+    expected_columns: ["income_parents_perc", "migration_background", "type_household", "parents_education",
+                       "y_m24_bmi", "y_m24_bmi_p90", "y_m24_bmi_p10", "y_m36_bmi_p90", "y_m45_bmi_p90",
+                       "y_m60_bmi_p90", "y_m120_bmi_p90", "y_m162_bmi_p90",
+                       "y_m24_words2_can", "y_m24_words2_notseen", "y_m24_bodyparts_can", "y_m24_bodyparts_notseen",
+                       "y_m24_language_delay", "y_m45_questions_can", "y_m45_questions_notseen",
+                       "y_m45_intelligible", "y_m45_questions2_can", "y_m45_questions2_notseen",
+                       "y_m45_language_delay", "y_m60_sdq11", "y_m120_sdq11", "y_m162_sdq11",
+                       "y_m36_visus", "y_m45_visus", "y_m60_visus",
+                       "pc4_m24", "pc4_m45", "org_m24", "org_m45"]
+    ranges:
+      birthdate: [child_birth_date_min, child_birth_date_max]

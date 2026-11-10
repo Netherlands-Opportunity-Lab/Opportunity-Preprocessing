@@ -26,8 +26,8 @@ cohorts <- c("age16", "age21", "age35",
              "prim8_a", "prim8_b",
              "newborns_a_mortality", "newborns_a_perinatal",
              "newborns_b_mortality", "newborns_b_perinatal")
-# The JGZ pipeline uses the JGZ files of project 8151 (L:/); run it with
-#   Rscript P_2_1_run_all.R jgz
+# The JGZ cohorts use the JGZ files of project 8151 (L:/); run them with
+#   Rscript P_2_1_run_all.R jgz jgz_catchment     # jgz_catchment needs jgz's step 01a
 
 cli_cohorts <- commandArgs(trailingOnly = TRUE)
 if (length(cli_cohorts) > 0) cohorts <- cli_cohorts

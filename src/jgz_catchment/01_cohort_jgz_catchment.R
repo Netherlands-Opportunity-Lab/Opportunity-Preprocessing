@@ -1,5 +1,5 @@
 # =============================================================================
-# JGZ preprocessing -- 03. Catchment-area sample for the bereik (reach) analyses
+# JGZ catchment sample -- 01. Catchment-area sample for the bereik (take-up) analyses
 #
 # Rebuilds Coen's Data_CatchmentArea_3pooled_withvariables.dta (Sept 2020): one
 # row per child who lived in the catchment area of one JGZ organisation during
@@ -8,7 +8,7 @@
 # regression do-file ("Uni and Multi regressions Do.do") and the descriptives
 # script start from this file.
 #
-#   Input : JGZ panel (output of 00), GBAPERSOONTAB, GBAADRESOBJECTBUS,
+#   Input : JGZ panel (output of step 01a of config/jgz.yml), GBAPERSOONTAB, GBAADRESOBJECTBUS,
 #           VSLPOSTCODEBUS, KINDOUDERTAB, IPI/INPATAB, INHATAB,
 #           HOOGSTEOPLTAB, ZVWZORGKOSTENTAB, the PC4 -> organisation file and
 #           LANDAKTUEELREF (resources/)
@@ -18,7 +18,7 @@
 # variable list of his dataset. On 2026-10-23 checked against the do-files
 # themselves ("20200916 SAMPLE SELECTION", "20200916 PREPARE CHILD AND FAMILY
 # CHARACTERISTICS", "20200913 ANALYSIS 3 CONTACT MOMENTS"). Variable names are
-# kept so the regression do-file runs unchanged. Settings in config/jgz.yml
+# kept so the regression do-file runs unchanged. Settings in config/jgz_catchment.yml
 # (catch_*), marked [Cx] below; defaults now follow Coen:
 #   [C1] windows 2y 22-33, 3y 34-43, 3y9m 44-53 months (SAMPLE SELECTION)
 #   [C2] continuous residence in one organisation's area over the whole
@@ -51,11 +51,13 @@
 #
 # Run from the repository root. GBAPERSOONTAB, GBAADRESOBJECTBUS,
 # VSLPOSTCODEBUS and KINDOUDERTAB are read from their SQLite versions (.db)
-# when the config points to them (read_cbs() in jgz_helpers.R): only the rows
+# when the config points to them (read_cbs_jgz() in jgz_helpers.R): only the rows
 # of the children, their parents and siblings and their addresses are read.
 # The yearly files (income, education, health costs) are still read as .sav.
 # =============================================================================
 
+# own config (config/jgz_catchment.yml); the runner passes it as run_config_file
+jgz_config_file <- if (exists("run_config_file")) run_config_file else "config/jgz_catchment.yml"
 source("src/jgz/jgz_helpers.R")
 suppressPackageStartupMessages(library(openxlsx))
 options(scipen = 999)
@@ -65,8 +67,8 @@ options(scipen = 999)
 
 # Latest version of a yearly CBS file
 latest_file <- function(folder, pattern) {
-  fl <- list.files(cbs_path(folder), pattern = pattern, full.names = TRUE, ignore.case = TRUE)
-  if (length(fl) == 0) stop("No file matching ", pattern, " in ", cbs_path(folder))
+  fl <- list.files(jgz_cbs_path(folder), pattern = pattern, full.names = TRUE, ignore.case = TRUE)
+  if (length(fl) == 0) stop("No file matching ", pattern, " in ", jgz_cbs_path(folder))
   sort(fl, decreasing = TRUE)[1]
 }
 
@@ -147,7 +149,7 @@ prep_kindouder <- function(kindouder) {
 
 birth_years <- seq(as.integer(format(as.Date(cfg$catch_birth_date_min), "%Y")),
                    as.integer(format(as.Date(cfg$catch_birth_date_max), "%Y")))
-gba <- read_cbs(loc$gba_persoon_file, cols = gba_cols,
+gba <- read_cbs_jgz(loc$gba_persoon_file, cols = gba_cols,
                 filter_in = list(GBAGEBOORTEJAAR = birth_years)) %>%
   prep_gba()
 
@@ -156,7 +158,7 @@ kids <- gba %>%
          birthdate <= as.Date(cfg$catch_birth_date_max))
 log_n("Children born in the birth-date range (GBA)", nrow(kids))
 
-kindouder <- read_cbs(loc$kindouder_file, filter_in = list(RINPERSOON = kids$RINPERSOON)) %>%
+kindouder <- read_cbs_jgz(loc$kindouder_file, filter_in = list(RINPERSOON = kids$RINPERSOON)) %>%
   prep_kindouder()
 
 kids <- kids %>% left_join(kindouder, by = c("RINPERSOONS", "RINPERSOON"))
@@ -392,7 +394,7 @@ sample <- sample %>%
 
 # --- Parents: birth dates, sex; birth order and mother's age at births ----------
 # All children of the mothers in the sample (any birth year)
-sib_links <- read_cbs(loc$kindouder_file,
+sib_links <- read_cbs_jgz(loc$kindouder_file,
                       filter_in = list(RINPERSOONMa = unique(sample$RINPERSOONMa))) %>%
   prep_kindouder() %>%
   filter(RINPERSOONMa %in% sample$RINPERSOONMa) %>%
@@ -402,7 +404,7 @@ sib_links <- read_cbs(loc$kindouder_file,
 # section 1 (born outside the birth years of the sample)
 others <- setdiff(unique(c(sample$RINPERSOONMa, sample$RINPERSOONpa, sib_links$RINPERSOON)),
                   c(NA, gba$RINPERSOON))
-gba <- bind_rows(gba, read_cbs(loc$gba_persoon_file, cols = gba_cols,
+gba <- bind_rows(gba, read_cbs_jgz(loc$gba_persoon_file, cols = gba_cols,
                                filter_in = list(RINPERSOON = others)) %>% prep_gba()) %>%
   distinct(RINPERSOONS, RINPERSOON, .keep_all = TRUE)
 

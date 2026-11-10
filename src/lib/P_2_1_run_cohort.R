@@ -42,22 +42,21 @@ run_config_file <- find_versioned("config", run_cohort, ext = "yml")
 run_pipeline <- config::get("pipeline", file = run_config_file)
 run_final_checks <- config::get(file = run_config_file)$final_checks   # NULL if not set
 
-if (run_cohort != "jgz") {
-  # read_cbs(): reads the converted SQLite (.db) versions of the large CBS files,
-  # filtered inside SQLite; a .sav path in the config falls back to read_sav().
-  # See convert_files_to_sqlite/README.md
-  source_versioned("src/lib", "sql_helpers")
+# read_cbs(): reads the converted SQLite (.db) versions of the large CBS files,
+# filtered inside SQLite; a .sav path in the config falls back to read_sav().
+# See convert_files_to_sqlite/README.md
+source_versioned("src/lib", "sql_helpers")
 
-  cfg <- config::get("data_preparation", file = run_config_file)
-  loc <- config::get("file_locations",   file = run_config_file)
-  for (run_dir in c(loc$temp_folder, loc$output_folder)) {
-    if (!dir.exists(run_dir)) dir.create(run_dir, recursive = TRUE)
-  }
-  # old names, for the robustness scripts that only exist in the RA (not on GitHub)
-  loc$scratch_folder <- loc$temp_folder
-  excel_path <- loc$temp_folder
+cfg <- config::get("data_preparation", file = run_config_file)
+loc <- config::get("file_locations",   file = run_config_file)
+for (run_dir in c(loc$temp_folder, loc$output_folder)) {
+  if (!dir.exists(run_dir)) dir.create(run_dir, recursive = TRUE)
 }
-# (the JGZ scripts read config/jgz.yml themselves, via src/jgz/jgz_helpers.R)
+# old names, for the robustness scripts that only exist in the RA (not on GitHub)
+loc$scratch_folder <- loc$temp_folder
+excel_path <- loc$temp_folder
+# (the JGZ scripts also read their config themselves, via src/jgz/jgz_helpers.R,
+# so they can be sourced on their own; the result is the same cfg and loc)
 
 # A script name may include a folder relative to script_dir (e.g.
 # "../age35/03_outcomes_age35"): the step number is the start of the file name.
@@ -79,7 +78,7 @@ withCallingHandlers({
 
     # every cohort file has one row per person (the step has already saved its
     # output, so after a failure here the next steps can be rerun once fixed)
-    if (run_cohort != "jgz" && exists("cohort_dat")) {
+    if (exists("cohort_dat")) {
       check_keys(cohort_dat, c("RINPERSOONS", "RINPERSOON"), name = paste0(run_cohort, " after ", run_script))
       run_columns[[run_script]] <- names(cohort_dat)
     }
@@ -88,7 +87,7 @@ withCallingHandlers({
   # the final cohort file: only when the last step (which writes it) has run.
   # `cohort_dat` is what that step wrote to output/<cohort>_cohort.rds.
   run_last <- utils::tail(run_pipeline$scripts, 1)
-  if (run_cohort != "jgz" && run_last %in% run_scripts && exists("cohort_dat")) {
+  if (run_last %in% run_scripts && exists("cohort_dat")) {
     run_before <- utils::head(utils::tail(run_pipeline$scripts, 2), 1)
     log_step(run_log, "final checks", {
       run_report <- check_final_cohort(

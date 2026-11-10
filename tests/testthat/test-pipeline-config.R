@@ -30,7 +30,7 @@ test_that("every config has a pipeline whose scripts exist", {
 })
 
 test_that("every cohort config has the settings the runner needs", {
-  for (f in setdiff(configs, grep("jgz", configs, value = TRUE))) {
+  for (f in configs) {
     cfg <- config::get("data_preparation", file = f)
     loc <- config::get("file_locations", file = f)
     cohort <- sub("^P_[0-9]+_[0-9]+_", "", sub("\\.yml$", "", basename(f)))
@@ -41,7 +41,7 @@ test_that("every cohort config has the settings the runner needs", {
 })
 
 test_that("final_checks ranges refer to existing settings", {
-  for (f in setdiff(configs, grep("jgz", configs, value = TRUE))) {
+  for (f in configs) {
     cfg <- config::get("data_preparation", file = f)
     checks <- config::get(file = f)$final_checks
     for (col in names(checks$ranges)) {

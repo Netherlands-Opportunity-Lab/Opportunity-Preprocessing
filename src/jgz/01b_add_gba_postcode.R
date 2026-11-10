@@ -1,11 +1,11 @@
 # =============================================================================
-# JGZ preprocessing -- 01. GBA address and postcode at each contact moment
+# JGZ cohort -- 01b. GBA address and postcode at each contact moment
 #
 # The postcode in the JGZ health file is whatever the organisation recorded.
 # For the maps we use the address the child was registered at (GBA) on the
 # date of the contact moment instead.
 #
-#   Input : loc$panel_file (output of 00), GBAADRESOBJECTBUS, VSLPOSTCODEBUS
+#   Input : loc$panel_file (output of 01a), GBAADRESOBJECTBUS, VSLPOSTCODEBUS
 #   Output: loc$panel_postcode_file -- the panel plus the address object
 #           (`soortobjectnummer`, `rinobjectnummer`) and `gba_postcode` (PC4)
 #
