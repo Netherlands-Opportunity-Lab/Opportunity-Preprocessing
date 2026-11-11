@@ -63,14 +63,20 @@ default:
     # (outcome_target_days) among the contact moments listed for that age
     # (decided 23-10-2026), per item when an age combines several items. The
     # contact-moment windows are those of 01c_contact_moments.R.
-    outcome_target_days: {m24: 730, m36: 1095, m45: 1368, m60: 2190, m120: 3819, m162: 5140}
+    outcome_target_days: {m1: 28, m2: 56, m3: 90, m4: 120, m6: 181, m9: 273, m11: 334, m14: 426, m18: 547,
+                          m24: 730, m36: 1095, m45: 1368, m60: 2190, m120: 3819, m162: 5140}
 
     # BMI (y_m<age>_bmi, _bmi_p90, _bmi_p10). Outliers: |z| > bmi_z_max, z
     # within age x sex, are set to missing (as the map tables). The p90 and
     # p10 cut-offs are computed over all children measured at that age, so they
     # are the same for every area (27-10-2026); within sex (TRUE) or boys and
     # girls together (FALSE, as Coen) -- to confirm with Bastian.
-    bmi_ages: {m24: ["2years"], m36: ["3years"], m45: ["3years9m"],
+    # Infant contacts added 11-11-2026 (all well filled in the 2019 descriptives,
+    # 22k-43k per contact). m1 = 4 weeks, m2 = 8 weeks; the 7.5-month visit falls
+    # in the 6-month window of 01c, so it has no age of its own.
+    bmi_ages: {m1: ["4wks"], m2: ["8wks"], m3: ["3months"], m4: ["4months"], m6: ["6months"],
+               m9: ["9months"], m11: ["11months"], m14: ["14months"], m18: ["18months"],
+               m24: ["2years"], m36: ["3years"], m45: ["3years9m"],
                m60: ["groep2"], m120: ["groep7"], m162: ["klas2"]}
     bmi_z_max: 5
     bmi_cutoffs_by_sex: TRUE
@@ -89,10 +95,11 @@ default:
     # 2 years, 45/46 at 3 years, 48/49/50 at 3y9m.
     wiechen_ages: {m24: ["18months", "2years"], m36: ["3years"], m45: ["3years", "3years9m"]}
     wiechen_items:
-      m24: {words2: "zin2w", bodyparts: "pop6"}
+      m24: {words2: "zin2w", bodyparts: "pop6", me_i: "noemt", pictures: "wijstaan"}
       m36: {words3: "zin3w", intelligible_familiar: "verstaan1"}
       m45: {questions: "vragen1", intelligible: "verstaan2", questions2: "vragen2"}
-    wiechen_no_m: ["intelligible"]
+    # items 44 (wijstaan) and 49 (verstaan2) are only scored + / -
+    wiechen_no_m: ["intelligible", "pictures"]
 
     # SDQ total score (y_m<age>_sdq<cutoff> = score >= cutoff). Scores above
     # sdq_max are impossible (range 0-40) and set to missing. At 3y9m (11k
@@ -174,7 +181,9 @@ default:
     expected_columns: ["income_parents_perc", "migration_background", "type_household", "parents_education",
                        "y_m24_bmi", "y_m24_bmi_p90", "y_m24_bmi_p10", "y_m36_bmi_p90", "y_m45_bmi_p90",
                        "y_m60_bmi_p90", "y_m120_bmi_p90", "y_m162_bmi_p90",
+                       "y_m1_bmi_p90", "y_m6_bmi_p90", "y_m18_bmi_p90",
                        "y_m24_words2_can", "y_m24_words2_notseen", "y_m24_bodyparts_can", "y_m24_bodyparts_notseen",
+                       "y_m24_me_i_can", "y_m24_me_i_notseen", "y_m24_pictures",
                        "y_m24_language_delay", "y_m36_words3_can", "y_m36_words3_notseen",
                        "y_m36_intelligible_familiar_can", "y_m36_intelligible_familiar_notseen", "y_m36_language_delay",
                        "y_m45_questions_can", "y_m45_questions_notseen",

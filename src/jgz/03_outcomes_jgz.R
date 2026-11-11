@@ -6,8 +6,10 @@
 # config/jgz.yml (data_preparation, "03_outcomes_jgz.R"); the functions are in
 # src/lib/P_2_1_jgz_outcomes.R. Names: y_m<age in months>_<outcome>.
 #
-#   BMI          y_m<age>_bmi, _bmi_p90, _bmi_p10      m24 m36 m45 m60 m120 m162
+#   BMI          y_m<age>_bmi, _bmi_p90, _bmi_p10      m1 m2 m3 m4 m6 m9 m11 m14 m18
+#                                                      m24 m36 m45 m60 m120 m162
 #   Van Wiechen  y_m24_words2_can/_notseen, y_m24_bodyparts_can/_notseen,
+#                y_m24_me_i_can/_notseen, y_m24_pictures,
 #                y_m36_words3_can/_notseen, y_m36_intelligible_familiar_can/_notseen,
 #                y_m45_questions_can/_notseen, y_m45_intelligible,
 #                y_m45_questions2_can/_notseen, y_m<age>_language_delay
