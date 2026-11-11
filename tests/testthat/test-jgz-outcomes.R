@@ -67,6 +67,27 @@ test_that("wiechen_outcomes: _can = + or M, _notseen = - or M, no-M items, langu
   expect_equal(get("e", "y_m45_questions_can"), 1L);  expect_equal(get("e", "y_m45_questions_notseen"), 1L)
 })
 
+test_that("language_delay: only core items, and only when all core items are scored", {
+  rows <- bind_rows(
+    row("a", "2years", 730, zin2w = "1", pop6 = "1", noemt = "2"),   # extra item -: not core
+    row("b", "2years", 730, zin2w = "2", pop6 = "1", noemt = "1"),   # core item -
+    row("c", "2years", 730, zin2w = "2", pop6 = NA,  noemt = "1"),   # core item missing
+    row("d", "2years", 730, zin2w = "3", pop6 = "1", noemt = "1"))   # M is not a delay
+  args <- list(rows = rows, ages = list(m24 = "2years"),
+               items = list(m24 = list(words2 = "zin2w", bodyparts = "pop6", me_i = "noemt")),
+               target_days = target, delay_items = list(m24 = c("words2", "bodyparts")))
+  complete <- do.call(wiechen_outcomes, c(args, delay_complete = TRUE))
+  get <- function(out, rin) out$y_m24_language_delay[out$RINPERSOON == rin]
+  expect_equal(get(complete, "a"), 0L)
+  expect_equal(get(complete, "b"), 1L)
+  expect_true(is.na(get(complete, "c")))
+  expect_equal(get(complete, "d"), 0L)
+  any_scored <- do.call(wiechen_outcomes, c(args, delay_complete = FALSE))
+  expect_equal(get(any_scored, "c"), 1L)
+  expect_error(wiechen_outcomes(rows, list(m24 = "2years"), list(m24 = list(words2 = "zin2w")), target,
+                                delay_items = list(m24 = "nope")), "not in wiechen_items")
+})
+
 test_that("sdq_outcomes: score >= cut-off, impossible scores dropped", {
   rows <- bind_rows(row("a", "groep2", 2190, sdq_t = 11), row("b", "groep2", 2190, sdq_t = 10),
                     row("c", "groep2", 2190, sdq_t = 117), row("c", "groep2", 2300, sdq_t = 12))
@@ -95,6 +116,9 @@ test_that("config/jgz.yml lists outcomes the functions can make", {
   ages <- unique(c(names(cfg$bmi_ages), names(cfg$wiechen_ages), names(cfg$sdq_ages), names(cfg$visus_ages)))
   expect_true(all(ages %in% names(cfg$outcome_target_days)))
   expect_setequal(names(cfg$wiechen_items), names(cfg$wiechen_ages))
+  for (a in names(cfg$language_delay_items)) {
+    expect_true(all(unlist(cfg$language_delay_items[[a]]) %in% names(cfg$wiechen_items[[a]])), info = a)
+  }
   checks <- config::get(file = file.path(root, "config", "jgz.yml"))$final_checks
   y_expected <- grep("^y_", checks$expected_columns, value = TRUE)
   made <- c(as.vector(outer(names(cfg$bmi_ages), c("bmi", "bmi_p90", "bmi_p10"), function(a, o) paste0("y_", a, "_", o))),

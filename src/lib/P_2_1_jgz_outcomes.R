@@ -108,11 +108,18 @@ wiechen_code <- function(x) {
 
 #' Per age and item: y_m<age>_<item>_can (+ or M) and y_m<age>_<item>_notseen
 #' (- or M); for items in `no_m`: y_m<age>_<item> (+). Plus
-#' y_m<age>_language_delay = at least one of the items of that age scored -
-#' (missing when none of them was scored).
+#' y_m<age>_language_delay = at least one of the core items of that age scored
+#' - (M, reported only by the parent, is not a delay).
 #' @param items named list per age: outcome name -> raw variable, e.g.
 #'   list(m24 = list(words2 = "zin2w", bodyparts = "pop6"))
-wiechen_outcomes <- function(rows, ages, items, target_days, no_m = character(0)) {
+#' @param delay_items named list per age: the core items (outcome names) that
+#'   define language_delay; NULL = all items of that age
+#' @param delay_complete TRUE: language_delay only for children with ALL core
+#'   items of that age scored (missing otherwise), so every child is judged on
+#'   the same items (decided 11-11-2026); FALSE: for children with at least one
+#'   core item scored
+wiechen_outcomes <- function(rows, ages, items, target_days, no_m = character(0),
+                             delay_items = NULL, delay_complete = FALSE) {
   out <- lapply(names(ages), function(age) {
     per_item <- lapply(names(items[[age]]), function(item) {
       var <- items[[age]][[item]]
@@ -133,9 +140,16 @@ wiechen_outcomes <- function(rows, ages, items, target_days, no_m = character(0)
     res <- join_children(per_item)
     if (is.null(res)) return(data.frame(RINPERSOONS = character(0), RINPERSOON = character(0)))
     min_cols <- grep("^\\.min_", names(res), value = TRUE)
-    m <- as.matrix(res[, min_cols, drop = FALSE])
+    core <- if (is.null(delay_items[[age]])) names(items[[age]]) else unlist(delay_items[[age]])
+    if (!all(core %in% names(items[[age]]))) {
+      stop("language_delay items for ", age, " not in wiechen_items: ",
+           paste(setdiff(core, names(items[[age]])), collapse = ", "))
+    }
+    m <- as.matrix(res[, paste0(".min_", core), drop = FALSE])
+    n_scored <- rowSums(!is.na(m))
+    enough <- if (isTRUE(delay_complete)) n_scored == length(core) else n_scored > 0
     res[[paste0("y_", age, "_language_delay")]] <-
-      ifelse(rowSums(!is.na(m)) == 0, NA_integer_, as.integer(rowSums(m == 1, na.rm = TRUE) > 0))
+      ifelse(enough, as.integer(rowSums(m == 1, na.rm = TRUE) > 0), NA_integer_)
     res[, setdiff(names(res), min_cols)]
   })
   join_children(out)

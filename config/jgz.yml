@@ -86,8 +86,8 @@ default:
     #   y_m<age>_<item>_can     = + or M  (can, according to professional or parent)
     #   y_m<age>_<item>_notseen = - or M  (not seen by the professional)
     # Items without an M option (wiechen_no_m) get one outcome: y_m<age>_<item>
-    # = + (seen by the professional). y_m<age>_language_delay = at least one
-    # item of that age scored -.
+    # = + (seen by the professional). y_m<age>_language_delay: see
+    # language_delay_items below.
     # NB disclosure: _can and _notseen of one item together with N give all
     # three categories; decide with Bastian which is exported.
     # Items and ages follow the filled cells of the 2019 descriptives (sheet D8.2,
@@ -100,6 +100,19 @@ default:
       m45: {questions: "vragen1", intelligible: "verstaan2", questions2: "vragen2"}
     # items 44 (wijstaan) and 49 (verstaan2) are only scored + / -
     wiechen_no_m: ["intelligible", "pictures"]
+    # y_m<age>_language_delay = at least one CORE item of that age scored -,
+    # only for children with all core items scored (language_delay_complete),
+    # so every child is judged on the same items (decided 11-11-2026). Core =
+    # the best-filled items (2019 descriptives, D8.2); 43/44 at 2 years are
+    # not core (~23k vs ~70k). Not used: the overall judgement "Beoordeling
+    # spraak- en taalontwikkeling" (Coen's l_delay), because its share
+    # "langzaam" differs too much between organisations (D4: Limburg-Noord 19%,
+    # ZONL 83%, Verian 71%), which points at selective registration.
+    language_delay_items:
+      m24: ["words2", "bodyparts"]
+      m36: ["words3", "intelligible_familiar"]
+      m45: ["questions", "intelligible", "questions2"]
+    language_delay_complete: TRUE
 
     # SDQ total score (y_m<age>_sdq<cutoff> = score >= cutoff). Scores above
     # sdq_max are impossible (range 0-40) and set to missing. At 3y9m (11k

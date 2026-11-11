@@ -64,7 +64,8 @@ target_days <- cfg$outcome_target_days
 
 outcomes <- join_children(list(
   bmi_outcomes(rows, cfg$bmi_ages, target_days, z_max = cfg$bmi_z_max, by_sex = cfg$bmi_cutoffs_by_sex),
-  wiechen_outcomes(rows, cfg$wiechen_ages, cfg$wiechen_items, target_days, no_m = unlist(cfg$wiechen_no_m)),
+  wiechen_outcomes(rows, cfg$wiechen_ages, cfg$wiechen_items, target_days, no_m = unlist(cfg$wiechen_no_m),
+                   delay_items = cfg$language_delay_items, delay_complete = cfg$language_delay_complete),
   sdq_outcomes(rows, cfg$sdq_ages, target_days, cutoff = cfg$sdq_cutoff, max_score = cfg$sdq_max),
   visus_outcomes(rows, cfg$visus_ages, target_days, abnormal = unlist(cfg$visus_abnormal),
                  normal = unlist(cfg$visus_normal))
