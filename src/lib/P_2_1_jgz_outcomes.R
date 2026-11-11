@@ -158,10 +158,12 @@ wiechen_outcomes <- function(rows, ages, items, target_days, no_m = character(0)
 
 # ---- SDQ ----------------------------------------------------------------------------------------
 
-#' y_m<age>_sdq<cutoff> = SDQ total score >= cutoff. Scores above `max_score`
-#' (impossible; the range is 0-40) are treated as missing before choosing the
-#' measurement.
-sdq_outcomes <- function(rows, ages, target_days, cutoff = 11, max_score = 40) {
+#' y_m<age>_sdq<cutoff> = SDQ total score >= cutoff; for the ages in
+#' `score_ages` also y_m<age>_sdq = the total score itself (same measurement),
+#' for means. Scores above `max_score` (impossible; the range is 0-40) are
+#' treated as missing before choosing the measurement.
+sdq_outcomes <- function(rows, ages, target_days, cutoff = 11, max_score = 40,
+                         score_ages = character(0)) {
   r <- rows[, c(KEYS_JGZ, "cm", "leeftijd")]
   r$sdq <- suppressWarnings(as.numeric(as.character(haven::zap_labels(rows$sdq_t))))
   n_bad <- sum(!is.na(r$sdq) & (r$sdq < 0 | r$sdq > max_score))
@@ -171,6 +173,7 @@ sdq_outcomes <- function(rows, ages, target_days, cutoff = 11, max_score = 40) {
     d <- closest_measurement(r, "sdq", ages[[age]], target_days[[age]])
     res <- d[, KEYS_JGZ]
     res[[paste0("y_", age, "_sdq", cutoff)]] <- as.integer(d$value >= cutoff)
+    if (age %in% score_ages) res[[paste0("y_", age, "_sdq")]] <- d$value
     res
   })
   join_children(out)

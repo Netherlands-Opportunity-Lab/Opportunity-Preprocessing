@@ -119,6 +119,10 @@ default:
     # scores in the 2019 descriptives) part of the questionnaires is the DMO
     # protocol instead of the SDQ (sheet D8.6).
     sdq_ages: {m45: ["3years9m"], m60: ["groep2"], m120: ["groep7"], m162: ["klas2"]}
+    # y_m<age>_sdq = the total score itself (for means: more stable in small
+    # areas and in the gradients, and independent of the cut-off), added
+    # 11-11-2026. Not at m45, where part of the scores come from the DMO protocol.
+    sdq_score_ages: ["m60", "m120", "m162"]
     sdq_cutoff: 11
     sdq_max: 40
 
@@ -202,6 +206,7 @@ default:
                        "y_m45_questions_can", "y_m45_questions_notseen",
                        "y_m45_intelligible", "y_m45_questions2_can", "y_m45_questions2_notseen",
                        "y_m45_language_delay", "y_m45_sdq11", "y_m60_sdq11", "y_m120_sdq11", "y_m162_sdq11",
+                       "y_m60_sdq", "y_m120_sdq", "y_m162_sdq",
                        "y_m36_visus", "y_m45_visus",
                        "pc4_m24", "pc4_m36", "pc4_m45", "org_m24", "org_m36", "org_m45"]
     ranges:

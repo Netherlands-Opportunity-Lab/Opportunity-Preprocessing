@@ -14,6 +14,7 @@
 #                y_m45_questions_can/_notseen, y_m45_intelligible,
 #                y_m45_questions2_can/_notseen, y_m<age>_language_delay
 #   SDQ          y_m<age>_sdq11                        m45 m60 m120 m162
+#                y_m<age>_sdq (total score)            m60 m120 m162
 #   Visus        y_m<age>_visus                        m36 m45
 #   Per age      pc4_m<age>, pc3_m<age>, org_m<age>: GBA postcode and
 #                organisation of the contact closest to the nominal age
@@ -66,7 +67,8 @@ outcomes <- join_children(list(
   bmi_outcomes(rows, cfg$bmi_ages, target_days, z_max = cfg$bmi_z_max, by_sex = cfg$bmi_cutoffs_by_sex),
   wiechen_outcomes(rows, cfg$wiechen_ages, cfg$wiechen_items, target_days, no_m = unlist(cfg$wiechen_no_m),
                    delay_items = cfg$language_delay_items, delay_complete = cfg$language_delay_complete),
-  sdq_outcomes(rows, cfg$sdq_ages, target_days, cutoff = cfg$sdq_cutoff, max_score = cfg$sdq_max),
+  sdq_outcomes(rows, cfg$sdq_ages, target_days, cutoff = cfg$sdq_cutoff, max_score = cfg$sdq_max,
+               score_ages = unlist(cfg$sdq_score_ages)),
   visus_outcomes(rows, cfg$visus_ages, target_days, abnormal = unlist(cfg$visus_abnormal),
                  normal = unlist(cfg$visus_normal))
 ))

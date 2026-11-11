@@ -93,6 +93,9 @@ test_that("sdq_outcomes: score >= cut-off, impossible scores dropped", {
                     row("c", "groep2", 2190, sdq_t = 117), row("c", "groep2", 2300, sdq_t = 12))
   out <- sdq_outcomes(rows, list(m60 = "groep2"), target, cutoff = 11, max_score = 40)
   expect_equal(out$y_m60_sdq11[order(out$RINPERSOON)], c(1L, 0L, 1L))   # c: 117 ignored, 12 used
+  expect_false("y_m60_sdq" %in% names(out))
+  with_score <- sdq_outcomes(rows, list(m60 = "groep2"), target, score_ages = "m60")
+  expect_equal(with_score$y_m60_sdq[order(with_score$RINPERSOON)], c(11, 10, 12))
 })
 
 test_that("visus_outcomes: codes and labels, unknown values missing", {
@@ -129,6 +132,7 @@ test_that("config/jgz.yml lists outcomes the functions can make", {
                               else paste0("y_", a, "_", i, c("_can", "_notseen")))))
             })),
             paste0("y_", names(cfg$sdq_ages), "_sdq", cfg$sdq_cutoff),
+            paste0("y_", unlist(cfg$sdq_score_ages), "_sdq"),
             paste0("y_", names(cfg$visus_ages), "_visus"))
   expect_true(all(y_expected %in% made), info = paste(setdiff(y_expected, made), collapse = ", "))
 })
