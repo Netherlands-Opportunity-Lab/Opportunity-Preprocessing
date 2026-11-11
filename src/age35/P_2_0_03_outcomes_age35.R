@@ -435,10 +435,13 @@ get_inpa_filename <- function(year) {
 # INPPERSPRIM is text in at least one INPA file and numeric in the others.
 # Text "no observed income" and empty values become NA; anything else that is
 # not a number stops the run, so a format problem can't silently create NAs.
+# read_sav() can return the text column as haven_labelled; is.character() is
+# TRUE for it, but as.numeric() on a labelled character errors in vctrs, so
+# the labels are dropped first.
 earnings_as_number <- function(x, year) {
   if (!is.character(x)) return(x)
   no_income <- "Behoort tot een huishouden zonder waargenomen inkomen"
-  x <- trimws(x)
+  x <- trimws(haven::zap_labels(x))
   out <- suppressWarnings(as.numeric(x))
   unexpected <- unique(x[is.na(out) & !is.na(x) & x != "" & x != no_income])
   if (length(unexpected) > 0) {
