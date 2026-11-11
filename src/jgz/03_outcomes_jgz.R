@@ -8,10 +8,11 @@
 #
 #   BMI          y_m<age>_bmi, _bmi_p90, _bmi_p10      m24 m36 m45 m60 m120 m162
 #   Van Wiechen  y_m24_words2_can/_notseen, y_m24_bodyparts_can/_notseen,
+#                y_m36_words3_can/_notseen, y_m36_intelligible_familiar_can/_notseen,
 #                y_m45_questions_can/_notseen, y_m45_intelligible,
 #                y_m45_questions2_can/_notseen, y_m<age>_language_delay
-#   SDQ          y_m<age>_sdq11                        m60 m120 m162
-#   Visus        y_m<age>_visus                        m36 m45 m60
+#   SDQ          y_m<age>_sdq11                        m45 m60 m120 m162
+#   Visus        y_m<age>_visus                        m36 m45
 #   Per age      pc4_m<age>, pc3_m<age>, org_m<age>: GBA postcode and
 #                organisation of the contact closest to the nominal age
 #

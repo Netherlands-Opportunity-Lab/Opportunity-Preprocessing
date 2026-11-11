@@ -84,15 +84,21 @@ default:
     # item of that age scored -.
     # NB disclosure: _can and _notseen of one item together with N give all
     # three categories; decide with Bastian which is exported.
-    wiechen_ages: {m24: ["18months", "2years"], m45: ["3years", "3years9m"]}
+    # Items and ages follow the filled cells of the 2019 descriptives (sheet D8.2,
+    # "20190208BR Descriptives bijgeschaafd.xlsx"; checked 11-11-2026): 41/42 at
+    # 2 years, 45/46 at 3 years, 48/49/50 at 3y9m.
+    wiechen_ages: {m24: ["18months", "2years"], m36: ["3years"], m45: ["3years", "3years9m"]}
     wiechen_items:
       m24: {words2: "zin2w", bodyparts: "pop6"}
+      m36: {words3: "zin3w", intelligible_familiar: "verstaan1"}
       m45: {questions: "vragen1", intelligible: "verstaan2", questions2: "vragen2"}
     wiechen_no_m: ["intelligible"]
 
     # SDQ total score (y_m<age>_sdq<cutoff> = score >= cutoff). Scores above
-    # sdq_max are impossible (range 0-40) and set to missing.
-    sdq_ages: {m60: ["groep2"], m120: ["groep7"], m162: ["klas2"]}
+    # sdq_max are impossible (range 0-40) and set to missing. At 3y9m (11k
+    # scores in the 2019 descriptives) part of the questionnaires is the DMO
+    # protocol instead of the SDQ (sheet D8.6).
+    sdq_ages: {m45: ["3years9m"], m60: ["groep2"], m120: ["groep7"], m162: ["klas2"]}
     sdq_cutoff: 11
     sdq_max: 40
 
@@ -100,7 +106,9 @@ default:
     # is in visus_abnormal, 0 when it is in visus_normal, missing otherwise.
     # Codebook: 1 voldoende, 2 twijfelachtig, 3 onvoldoende. Default:
     # "afwijkend" = onvoldoende; twijfelachtig counts as not abnormal -- to confirm.
-    visus_ages: {m36: ["3years"], m45: ["3years9m"], m60: ["groep2"]}
+    # Not at groep 2: only 545 conclusions there (2019 descriptives, D8.3); the
+    # vision test at groep 2 is recorded as a Landolt-C result instead (11-11-2026).
+    visus_ages: {m36: ["3years"], m45: ["3years9m"]}
     visus_abnormal: ["3", "onvoldoende"]
     visus_normal: ["1", "2", "voldoende", "twijfelachtig"]
 
@@ -167,10 +175,12 @@ default:
                        "y_m24_bmi", "y_m24_bmi_p90", "y_m24_bmi_p10", "y_m36_bmi_p90", "y_m45_bmi_p90",
                        "y_m60_bmi_p90", "y_m120_bmi_p90", "y_m162_bmi_p90",
                        "y_m24_words2_can", "y_m24_words2_notseen", "y_m24_bodyparts_can", "y_m24_bodyparts_notseen",
-                       "y_m24_language_delay", "y_m45_questions_can", "y_m45_questions_notseen",
+                       "y_m24_language_delay", "y_m36_words3_can", "y_m36_words3_notseen",
+                       "y_m36_intelligible_familiar_can", "y_m36_intelligible_familiar_notseen", "y_m36_language_delay",
+                       "y_m45_questions_can", "y_m45_questions_notseen",
                        "y_m45_intelligible", "y_m45_questions2_can", "y_m45_questions2_notseen",
-                       "y_m45_language_delay", "y_m60_sdq11", "y_m120_sdq11", "y_m162_sdq11",
-                       "y_m36_visus", "y_m45_visus", "y_m60_visus",
-                       "pc4_m24", "pc4_m45", "org_m24", "org_m45"]
+                       "y_m45_language_delay", "y_m45_sdq11", "y_m60_sdq11", "y_m120_sdq11", "y_m162_sdq11",
+                       "y_m36_visus", "y_m45_visus",
+                       "pc4_m24", "pc4_m36", "pc4_m45", "org_m24", "org_m36", "org_m45"]
     ranges:
       birthdate: [child_birth_date_min, child_birth_date_max]

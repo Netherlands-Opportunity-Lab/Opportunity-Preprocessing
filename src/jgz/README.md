@@ -62,15 +62,18 @@ m162.
 | Domain | Outcomes | Ages | Definition |
 |---|---|---|---|
 | BMI | `y_m<age>_bmi`, `_bmi_p90`, `_bmi_p10` | m24 m36 m45 m60 m120 m162 | BMI; above the 90th / below the 10th percentile of all children measured at that age (same cut-off for every area; within sex by default, `bmi_cutoffs_by_sex`). Outliers with \|z\| > 5 (within age x sex) set to missing |
-| Van Wiechen | `y_m24_words2_*` (41), `y_m24_bodyparts_*` (42), `y_m45_questions_*` (48), `y_m45_intelligible` (49), `y_m45_questions2_*` (50), `y_m<age>_language_delay` | m24, m45 | `_can` = + or M (professional or parent), `_notseen` = - or M (not seen by the professional); item 49 has no M: `intelligible` = +. `language_delay` = at least one item of that age scored - |
-| SDQ | `y_m<age>_sdq11` | m60 m120 m162 | total score >= 11 (`sdq_cutoff`); scores above 40 set to missing |
-| Visus | `y_m<age>_visus` | m36 m45 m60 | conclusion of the vision test (`visus_c`) = onvoldoende (`visus_abnormal`); voldoende and twijfelachtig = 0 |
+| Van Wiechen | `y_m24_words2_*` (41), `y_m24_bodyparts_*` (42), `y_m36_words3_*` (45), `y_m36_intelligible_familiar_*` (46), `y_m45_questions_*` (48), `y_m45_intelligible` (49), `y_m45_questions2_*` (50), `y_m<age>_language_delay` | m24, m36, m45 | `_can` = + or M (professional or parent), `_notseen` = - or M (not seen by the professional); item 49 has no M: `intelligible` = +. `language_delay` = at least one item of that age scored - |
+| SDQ | `y_m<age>_sdq11` | m45 m60 m120 m162 | total score >= 11 (`sdq_cutoff`); scores above 40 set to missing. At 3y9m partly the DMO protocol instead of the SDQ |
+| Visus | `y_m<age>_visus` | m36 m45 | conclusion of the vision test (`visus_c`) = onvoldoende (`visus_abnormal`); voldoende and twijfelachtig = 0 |
 | Per age | `pc4_m<age>`, `pc3_m<age>`, `org_m<age>` | all | GBA postcode and organisation of the contact closest to the nominal age, for the maps and for the export rules per organisation |
 
 One measurement per child per age: the one closest to the nominal age
 (`outcome_target_days`) among the contact moments listed for that age, per
-item. Van Wiechen at m24 uses the 18-month and 2-year contacts, at m45 the 3y
-and 3y9m contacts (as the map tables). Open choices for Bastian: p90/p10
+item. Van Wiechen at m24 uses the 18-month and 2-year contacts, at m36 the 3y
+contact, at m45 the 3y and 3y9m contacts (as the map tables). Items and ages
+follow the filled cells of the 2019 descriptives (sheet D8,
+`20190208BR Descriptives bijgeschaafd.xlsx`; checked 11-11-2026): visus is
+not used at groep 2 (545 conclusions; recorded there as a Landolt-C result). Open choices for Bastian: p90/p10
 within sex or not, the SDQ cut-off, the visus definition, and which of
 `_can` / `_notseen` is exported (both together with N reveal all three
 categories).
