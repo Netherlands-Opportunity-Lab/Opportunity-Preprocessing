@@ -43,6 +43,18 @@ test_that("bmi_outcomes: p90/p10 flags over all children at that age, outliers d
   expect_equal(nrow(by_sex), 200)
 })
 
+test_that("bmi_outcomes: Inf/NaN BMI is dropped before picking, child falls back to a valid one", {
+  rows <- row(paste0("k", 1:100), "2years", 735, BMI = seq(14, 19, length.out = 100))
+  rows <- bind_rows(rows,
+                    row("k1", "2years", 730, BMI = Inf),   # closer to 730 than the valid 14, but invalid
+                    row("k2", "2years", 730, BMI = NaN))
+  rows$sex <- ifelse(rows$RINPERSOON %in% paste0("k", seq(1, 100, 2)), "boy", "girl")
+  out <- suppressMessages(bmi_outcomes(rows, list(m24 = "2years"), target, by_sex = TRUE))
+  expect_true(all(is.finite(out$y_m24_bmi)))
+  expect_equal(out$y_m24_bmi[out$RINPERSOON == "k1"], 14)
+  expect_false(is.na(out$y_m24_bmi[out$RINPERSOON == "k2"]))
+})
+
 test_that("wiechen_outcomes: _can = + or M, _notseen = - or M, no-M items, language delay", {
   rows <- bind_rows(
     row("a", "2years", 730, zin2w = "1", pop6 = "3"),   # + and M

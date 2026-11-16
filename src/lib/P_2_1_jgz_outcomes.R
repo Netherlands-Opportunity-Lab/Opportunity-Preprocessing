@@ -67,10 +67,18 @@ age_geography <- function(rows, age_cms, target_days) {
 
 #' y_m<age>_bmi, y_m<age>_bmi_p90 (BMI above the 90th percentile) and
 #' y_m<age>_bmi_p10 (below the 10th percentile) per age.
+#' Non-finite BMI (Inf / NaN, from a length of 0 in 01c) is set to missing
+#' before a measurement is picked, so a child falls back to its next-closest
+#' valid measurement in the window and mean/sd for the z-score stay finite.
 #' Outliers (|z| > z_max, z within age x sex) are set to missing first.
 #' The cut-offs are computed over all children with a BMI at that age, within
 #' sex (by_sex = TRUE) or boys and girls together.
 bmi_outcomes <- function(rows, ages, target_days, z_max = 5, by_sex = TRUE) {
+  bad <- !is.na(rows$BMI) & !is.finite(rows$BMI)
+  if (any(bad)) {
+    message(sprintf("BMI: %d non-finite value(s) (Inf/NaN, length 0?) set to missing", sum(bad)))
+    rows$BMI[bad] <- NA_real_
+  }
   out <- lapply(names(ages), function(age) {
     d <- closest_measurement(rows, "BMI", ages[[age]], target_days[[age]], keep = "sex")
     if (nrow(d) == 0) return(d[, KEYS_JGZ])
