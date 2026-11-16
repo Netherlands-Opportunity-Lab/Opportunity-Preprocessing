@@ -51,7 +51,7 @@ The JGZ pipeline (`src/jgz/`) has its own copy of `read_cbs()` in `jgz_helpers.R
 
 ### SECMBUS (age35)
 
-`config/P_2_0_age35.yml` expects `InkomenBestedingen/SECMBUS/geconverteerde data/SECMBUS2024V1.db`.
+`config/P_2_0_age35.yml` expects `InkomenBestedingen/SECMBUS/geconverteerde data/SECMBUS2025V1.db`.
 Until CBS has moved your converted file there, set `secm_data` to its full path
 (e.g. `H:/.../SECMBUS2024V1.db`); `cbs_path()` accepts both. Convert it with
 `savtosqlite.py` so it has the `value_labels` table and the RINPERSOON index (see below).

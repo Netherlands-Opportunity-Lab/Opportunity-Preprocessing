@@ -86,7 +86,7 @@ default:
     # SECMBUS: converted with convert_files_to_sqlite/savtosqlite.py. Until CBS has moved it to
     # 'geconverteerde data', put the full path here (e.g. "H:/.../SECMBUS2024V1.db"); the
     # .SAV path also works (then read_cbs() falls back to read_sav()).
-    secm_data: "InkomenBestedingen/SECMBUS/geconverteerde data/SECMBUS2024V1.db"
+    secm_data: "InkomenBestedingen/SECMBUS/geconverteerde data/SECMBUS2025V1.db"
     woon_data: "BouwenWonen/LEVCYCLWOONNIETWOONBUS/geconverteerde data/LEVCYCLWOONNIETWOONBUSV2025123.db"
     poverty_data: "InkomenBestedingen/INHARMATAB/"
 
