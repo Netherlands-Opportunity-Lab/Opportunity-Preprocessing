@@ -64,7 +64,7 @@ default:
     # (decided 23-10-2026), per item when an age combines several items. The
     # contact-moment windows are those of 01c_contact_moments.R.
     outcome_target_days: {m1: 28, m2: 56, m3: 90, m4: 120, m6: 181, m9: 273, m11: 334, m14: 426, m18: 547,
-                          m24: 730, m36: 1095, m45: 1368, m60: 2190, m120: 3819, m162: 5140}
+                          m24: 730, m36: 1095, m45: 1368, m60: 2190, m120: 3819}
 
     # BMI (y_m<age>_bmi, _bmi_p90, _bmi_p10). Outliers: |z| > bmi_z_max, z
     # within age x sex, are set to missing (as the map tables). The p90 and
@@ -74,10 +74,13 @@ default:
     # Infant contacts added 11-11-2026 (all well filled in the 2019 descriptives,
     # 22k-43k per contact). m1 = 4 weeks, m2 = 8 weeks; the 7.5-month visit falls
     # in the 6-month window of 01c, so it has no age of its own.
+    # m162 (klas 2) dropped 16-11-2026: with JGZ data up to 2018 only children
+    # born early 2005 reach 13.5 years (31 BMI, 25 SDQ in the RA run). The
+    # klas2 contact moment stays in 01c.
     bmi_ages: {m1: ["4wks"], m2: ["8wks"], m3: ["3months"], m4: ["4months"], m6: ["6months"],
                m9: ["9months"], m11: ["11months"], m14: ["14months"], m18: ["18months"],
                m24: ["2years"], m36: ["3years"], m45: ["3years9m"],
-               m60: ["groep2"], m120: ["groep7"], m162: ["klas2"]}
+               m60: ["groep2"], m120: ["groep7"]}
     bmi_z_max: 5
     bmi_cutoffs_by_sex: TRUE
 
@@ -118,11 +121,11 @@ default:
     # sdq_max are impossible (range 0-40) and set to missing. At 3y9m (11k
     # scores in the 2019 descriptives) part of the questionnaires is the DMO
     # protocol instead of the SDQ (sheet D8.6).
-    sdq_ages: {m45: ["3years9m"], m60: ["groep2"], m120: ["groep7"], m162: ["klas2"]}
+    sdq_ages: {m45: ["3years9m"], m60: ["groep2"], m120: ["groep7"]}
     # y_m<age>_sdq = the total score itself (for means: more stable in small
     # areas and in the gradients, and independent of the cut-off), added
     # 11-11-2026. Not at m45, where part of the scores come from the DMO protocol.
-    sdq_score_ages: ["m60", "m120", "m162"]
+    sdq_score_ages: ["m60", "m120"]
     sdq_cutoff: 11
     sdq_max: 40
 
@@ -197,7 +200,7 @@ default:
     # Checked on output/jgz_cohort.rds at the end of the run (check_final_cohort())
     expected_columns: ["income_parents_perc", "migration_background", "type_household", "parents_education",
                        "y_m24_bmi", "y_m24_bmi_p90", "y_m24_bmi_p10", "y_m36_bmi_p90", "y_m45_bmi_p90",
-                       "y_m60_bmi_p90", "y_m120_bmi_p90", "y_m162_bmi_p90",
+                       "y_m60_bmi_p90", "y_m120_bmi_p90",
                        "y_m1_bmi_p90", "y_m6_bmi_p90", "y_m18_bmi_p90",
                        "y_m24_words2_can", "y_m24_words2_notseen", "y_m24_bodyparts_can", "y_m24_bodyparts_notseen",
                        "y_m24_me_i_can", "y_m24_me_i_notseen", "y_m24_pictures",
@@ -205,8 +208,8 @@ default:
                        "y_m36_intelligible_familiar_can", "y_m36_intelligible_familiar_notseen", "y_m36_language_delay",
                        "y_m45_questions_can", "y_m45_questions_notseen",
                        "y_m45_intelligible", "y_m45_questions2_can", "y_m45_questions2_notseen",
-                       "y_m45_language_delay", "y_m45_sdq11", "y_m60_sdq11", "y_m120_sdq11", "y_m162_sdq11",
-                       "y_m60_sdq", "y_m120_sdq", "y_m162_sdq",
+                       "y_m45_language_delay", "y_m45_sdq11", "y_m60_sdq11", "y_m120_sdq11",
+                       "y_m60_sdq", "y_m120_sdq",
                        "y_m36_visus", "y_m45_visus",
                        "pc4_m24", "pc4_m36", "pc4_m45", "org_m24", "org_m36", "org_m45"]
     ranges:

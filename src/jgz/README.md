@@ -58,13 +58,14 @@ preprocessing JGZ", 10-11-2026). Every choice is a setting in `config/jgz.yml`.
 Names: `y_m<age in months>_<outcome>`; file names add the version prefix
 (`Y_1_0_m24_bmi_p90`). Infant contacts: 4 weeks = m1, 8 weeks = m2 (the
 7.5-month visit falls in the 6-month window). School groups: groep 2 = m60,
-groep 7 = m120, klas 2 = m162.
+groep 7 = m120. Klas 2 (m162) was dropped on 16-11-2026: with JGZ data
+up to 2018 only children born early 2005 reach 13.5 years (31 children).
 
 | Domain | Outcomes | Ages | Definition |
 |---|---|---|---|
-| BMI | `y_m<age>_bmi`, `_bmi_p90`, `_bmi_p10` | m1 m2 m3 m4 m6 m9 m11 m14 m18 m24 m36 m45 m60 m120 m162 | BMI; above the 90th / below the 10th percentile of all children measured at that age (same cut-off for every area; within sex by default, `bmi_cutoffs_by_sex`). Outliers with \|z\| > 5 (within age x sex) set to missing |
+| BMI | `y_m<age>_bmi`, `_bmi_p90`, `_bmi_p10` | m1 m2 m3 m4 m6 m9 m11 m14 m18 m24 m36 m45 m60 m120 | BMI; above the 90th / below the 10th percentile of all children measured at that age (same cut-off for every area; within sex by default, `bmi_cutoffs_by_sex`). Outliers with \|z\| > 5 (within age x sex) set to missing |
 | Van Wiechen | `y_m24_words2_*` (41), `y_m24_bodyparts_*` (42), `y_m24_me_i_*` (43), `y_m24_pictures` (44), `y_m36_words3_*` (45), `y_m36_intelligible_familiar_*` (46), `y_m45_questions_*` (48), `y_m45_intelligible` (49), `y_m45_questions2_*` (50), `y_m<age>_language_delay` | m24, m36, m45 | `_can` = + or M (professional or parent), `_notseen` = - or M (not seen by the professional); items 44 and 49 have no M: `pictures` and `intelligible` = +. `language_delay` = at least one core item scored - (41+42 / 45+46 / 48+49+50), only for children with all core items scored; not Coen's overall judgement, whose share "langzaam" differs too much between organisations |
-| SDQ | `y_m<age>_sdq11`; `y_m<age>_sdq` (total score) | m45 m60 m120 m162; score m60 m120 m162 | total score >= 11 (`sdq_cutoff`), and the score itself for means (not at 3y9m, `sdq_score_ages`); scores above 40 set to missing. At 3y9m partly the DMO protocol instead of the SDQ |
+| SDQ | `y_m<age>_sdq11`; `y_m<age>_sdq` (total score) | m45 m60 m120; score m60 m120 | total score >= 11 (`sdq_cutoff`), and the score itself for means (not at 3y9m, `sdq_score_ages`); scores above 40 set to missing. At 3y9m partly the DMO protocol instead of the SDQ |
 | Visus | `y_m<age>_visus` | m36 m45 | conclusion of the vision test (`visus_c`) = onvoldoende (`visus_abnormal`); voldoende and twijfelachtig = 0 |
 | Per age | `pc4_m<age>`, `pc3_m<age>`, `org_m<age>` | all | GBA postcode and organisation of the contact closest to the nominal age, for the maps and for the export rules per organisation |
 
