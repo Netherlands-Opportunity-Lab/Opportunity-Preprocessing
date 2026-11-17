@@ -55,6 +55,16 @@ sample_size <- read_rds(file.path(loc$temp_folder, "02_sample_size.rds"))
 source_versioned("src/lib", "function_kansenkaart_preprocessing")
 
 
+# check_keys() and checked_join() (src/lib/P_2_1_checks.R). cohort_dat must stay at
+# one row per person: every outcome block below ends with check_keys(), and the joins
+# that once duplicated people go through checked_join(), so a duplicate stops the run
+# at the block that made it, instead of multiplying in the next joins until R runs
+# out of memory ("cannot allocate vector", 17-11-2026)
+source_versioned("src/lib", "checks")
+person_keys <- c("RINPERSOONS", "RINPERSOON")
+check_keys(cohort_dat, person_keys, name = "cohort_dat (02_predictors.rds)")
+
+
 # create a table with incomes at the cpi_base_year level
 # first, load consumer price index data (2015 = 100)
 # source: CBS statline
@@ -141,6 +151,7 @@ cohort_dat <-
 
 # free up memory
 rm(adres_tab, days_tab, residency_tab)
+check_keys(cohort_dat, person_keys, name = "cohort_dat after the residency requirement")
 
 
 sample_size <- sample_size %>% 
@@ -402,6 +413,7 @@ cohort_dat <-
 
 sample_size <- sample_size %>% mutate(n_6_child_household_income = nrow(cohort_dat))
 
+check_keys(cohort_dat, person_keys, name = "cohort_dat after the household_income block")
 }   # household_income
 
 
@@ -599,6 +611,7 @@ cohort_dat <-
 
 sample_size <- sample_size %>% mutate(n_7_child_income = nrow(cohort_dat))
 
+check_keys(cohort_dat, person_keys, name = "cohort_dat after the individual_income block")
 }   # individual_income
 
 
@@ -677,6 +690,7 @@ cohort_dat <-
   ) %>%
   select(-edu_attained)
 
+check_keys(cohort_dat, person_keys, name = "cohort_dat after the education block")
 }   # education
 
 
@@ -810,6 +824,7 @@ cohort_dat <-
   ) %>%
   select(-c(spolis_n, longest_contract_type))
 
+check_keys(cohort_dat, person_keys, name = "cohort_dat after the hourly_wage block")
 }   # hourly_wage
 
 
@@ -874,6 +889,7 @@ cohort_dat <-
   ) %>%
   select(-SECM)
 
+check_keys(cohort_dat, person_keys, name = "cohort_dat after the socioeconomic block")
 }   # socioeconomic
 
 
@@ -958,6 +974,7 @@ cohort_dat <- cohort_dat %>%
          hospital           = ifelse(is.na(hospital), 0, hospital),
          total_health_costs = ifelse(is.na(total_health_costs), 0, total_health_costs))
 
+check_keys(cohort_dat, person_keys, name = "cohort_dat after the health block")
 }   # health
 
 
@@ -1072,6 +1089,7 @@ cohort_dat <-
 
 sample_size <- sample_size %>% mutate(n_8_child_wealth = nrow(cohort_dat))
 
+check_keys(cohort_dat, person_keys, name = "cohort_dat after the wealth block")
 }   # wealth
 
 
@@ -1101,8 +1119,9 @@ adres_tab <-
 
 # keep children at a specific date
 adres_tab <- adres_tab %>%
-  left_join(cohort_dat %>% select(RINPERSOONS, RINPERSOON, year), 
-            by = c("RINPERSOONS", "RINPERSOON")) %>%
+  checked_join(cohort_dat %>% ungroup() %>% select(RINPERSOONS, RINPERSOON, year),
+               by = person_keys, relationship = "m:1",
+               name = "homeowner: addresses + outcome year") %>%
   # data at which we measure property
   mutate(date = ymd(paste0(year, "-01-01"))) %>%
   # only keep address at specific data
@@ -1139,10 +1158,19 @@ adres_tab <- left_join(adres_tab, property_dat,
                        by = c("SOORTOBJECTNUMMER", "RINOBJECTNUMMER", "year"))
 
 
-cohort_dat <- 
-  cohort_dat %>% 
-  left_join(adres_tab %>% select(RINPERSOONS, RINPERSOON, TypeEigenaar), 
-            by = c("RINPERSOONS", "RINPERSOON"))
+# one owner type per person. A dwelling can have several rows in EIGENDOMTAB (e.g.
+# several owners), and someone who moves on 1 January has two addresses on that
+# date: both gave several rows per person (17-11-2026). Owner-occupied ("E") counts
+# if it is among them; otherwise the first owner type that is not missing.
+owner_tab <- adres_tab %>%
+  mutate(TypeEigenaar = as.character(TypeEigenaar)) %>%
+  arrange(RINPERSOONS, RINPERSOON, TypeEigenaar != "E", is.na(TypeEigenaar)) %>%
+  distinct(RINPERSOONS, RINPERSOON, .keep_all = TRUE) %>%
+  select(RINPERSOONS, RINPERSOON, TypeEigenaar)
+
+cohort_dat <- checked_join(cohort_dat, owner_tab, by = person_keys, relationship = "1:1",
+                           name = "homeowner: cohort + owner type")
+rm(owner_tab)
 
 
 # not merged
@@ -1160,6 +1188,7 @@ cohort_dat <-
 
 rm(adres_tab, property_dat)
 
+check_keys(cohort_dat, person_keys, name = "cohort_dat after the homeowner block")
 }   # homeowner
 
 
@@ -1200,10 +1229,10 @@ for (year in seq(as.integer(cfg$gifts_dat_start), as.integer(cfg$gifts_dat_end))
 
 gifts_tab <-
   # add birth year to data
-  left_join(gifts_tab, cohort_dat %>% select(RINPERSOONS, RINPERSOON, birth_year), 
-            by = c("RINPERSOONSONTVANGER" = "RINPERSOONS", 
-                   "RINPERSOONONTVANGER" = "RINPERSOON")
-            ) %>%
+  checked_join(gifts_tab, cohort_dat %>% ungroup() %>% select(RINPERSOONS, RINPERSOON, birth_year),
+               by = c("RINPERSOONSONTVANGER" = "RINPERSOONS",
+                      "RINPERSOONONTVANGER" = "RINPERSOON"),
+               relationship = "m:1", name = "gifts + birth year") %>%
   # ages at which we measure when the child has received a gifts from the parents
   mutate(
     gifts_start = birth_year + cfg$gifts_year_start, 
@@ -1229,9 +1258,10 @@ gifts_tab <-
 
 
 cohort_dat <-
-  left_join(cohort_dat, gifts_tab,
-            by = c("RINPERSOONS" = "RINPERSOONSONTVANGER",
-                   "RINPERSOON" = "RINPERSOONONTVANGER"))
+  checked_join(cohort_dat, gifts_tab,
+               by = c("RINPERSOONS" = "RINPERSOONSONTVANGER",
+                      "RINPERSOON" = "RINPERSOONONTVANGER"),
+               relationship = "1:1", name = "gifts: cohort + sum of gifts")
 
 rm(gifts_tab)
 
@@ -1245,6 +1275,7 @@ cohort_dat <-
   mutate(gifts_received = ifelse(!is.na(sum_gifts), 1, 0), 
          sum_gifts = ifelse(is.na(sum_gifts), 0, sum_gifts)) # code NA to 0
 
+check_keys(cohort_dat, person_keys, name = "cohort_dat after the gifts block")
 }   # gifts
 
 
@@ -1269,14 +1300,21 @@ cohort_dat <- cohort_dat %>%
 # add 1 january data to adres tab to filter for home addresses at 1 jan
 adres_tab <- 
   adres_tab %>%
-  left_join(cohort_dat %>% select(RINPERSOONS, RINPERSOON, january)) %>%
-  filter(january %within% interval(GBADATUMAANVANGADRESHOUDING, GBADATUMEINDEADRESHOUDING)) 
+  checked_join(cohort_dat %>% ungroup() %>% select(RINPERSOONS, RINPERSOON, january),
+               by = person_keys, relationship = "m:1",
+               name = "living space: addresses + 1 January") %>%
+  filter(january %within% interval(GBADATUMAANVANGADRESHOUDING, GBADATUMEINDEADRESHOUDING)) %>%
+  # a move on 1 January gives two addresses on that date (the old spell ends and the
+  # new one starts that day): keep the new one, so there is one address per person
+  arrange(RINPERSOONS, RINPERSOON, desc(GBADATUMAANVANGADRESHOUDING)) %>%
+  distinct(RINPERSOONS, RINPERSOON, .keep_all = TRUE)
 
 # add home addresses to data
-cohort_dat <- left_join(cohort_dat, adres_tab %>% 
-                          select(RINPERSOONS, RINPERSOON, 
-                                 SOORTOBJECTNUMMER, RINOBJECTNUMMER),
-                        by = c("RINPERSOONS", "RINPERSOON"))
+cohort_dat <- checked_join(cohort_dat, adres_tab %>% 
+                             select(RINPERSOONS, RINPERSOON, 
+                                    SOORTOBJECTNUMMER, RINOBJECTNUMMER),
+                           by = person_keys, relationship = "1:1",
+                           name = "living space 35: cohort + home address")
 rm(adres_tab) 
 
 # not merged
@@ -1310,16 +1348,22 @@ woon_tab <-
 # add 1 january data to woon tab to filter for home addresses at 1 jan
 woon_tab <- 
   woon_tab %>%
-  left_join(cohort_dat %>% select(SOORTOBJECTNUMMER, RINOBJECTNUMMER, january), 
-            by = c("SOORTOBJECTNUMMER", "RINOBJECTNUMMER")) %>%
+  # (many-to-many on purpose: a dwelling has one or more life cycles, and one or
+  # more cohort members, with their own 1 January; reduced to one row per dwelling
+  # and date right below)
+  left_join(cohort_dat %>% ungroup() %>% distinct(SOORTOBJECTNUMMER, RINOBJECTNUMMER, january), 
+            by = c("SOORTOBJECTNUMMER", "RINOBJECTNUMMER"), relationship = "many-to-many") %>%
   filter(january %within% interval(AANVLEVCYCLWOONNIETWOON, EINDLEVCYCLWOONNIETWOON)) %>%
-  unique()
+  # a dwelling rebuilt on 1 January has two life cycles on that date: keep the new one
+  arrange(SOORTOBJECTNUMMER, RINOBJECTNUMMER, january, desc(AANVLEVCYCLWOONNIETWOON)) %>%
+  distinct(SOORTOBJECTNUMMER, RINOBJECTNUMMER, january, .keep_all = TRUE)
 
 
 # add living space to data
-cohort_dat <- left_join(cohort_dat,
-                        woon_tab %>% select(SOORTOBJECTNUMMER, RINOBJECTNUMMER, VBOOPPERVLAKTE, january),
-                        by = c("SOORTOBJECTNUMMER", "RINOBJECTNUMMER", "january"))  %>%
+cohort_dat <- checked_join(cohort_dat,
+                           woon_tab %>% select(SOORTOBJECTNUMMER, RINOBJECTNUMMER, VBOOPPERVLAKTE, january),
+                           by = c("SOORTOBJECTNUMMER", "RINOBJECTNUMMER", "january"),
+                           relationship = "m:1", name = "living space: cohort + floor area")  %>%
   mutate(VBOOPPERVLAKTE = as.numeric(VBOOPPERVLAKTE))
 
 rm(woon_tab)
@@ -1355,9 +1399,19 @@ for (year in seq(as.integer(cfg$child_outcome_year_min), as.integer(cfg$child_ou
 }
 
 
+# only the dwellings of the cohort, one row per dwelling and year: a dwelling can
+# have several rows in EIGENDOMTAB (e.g. several owners); if their AantalBewoners
+# differ, the highest is taken
+household_members <- household_members %>%
+  semi_join(cohort_dat %>% ungroup() %>% distinct(SOORTOBJECTNUMMER, RINOBJECTNUMMER),
+            by = c("SOORTOBJECTNUMMER", "RINOBJECTNUMMER")) %>%
+  arrange(SOORTOBJECTNUMMER, RINOBJECTNUMMER, year, desc(AantalBewoners)) %>%
+  distinct(SOORTOBJECTNUMMER, RINOBJECTNUMMER, year, .keep_all = TRUE)
+
 cohort_dat <- 
   cohort_dat %>%
-  left_join(household_members, by = c("SOORTOBJECTNUMMER", "RINOBJECTNUMMER", "year")) %>%
+  checked_join(household_members, by = c("SOORTOBJECTNUMMER", "RINOBJECTNUMMER", "year"),
+               relationship = "m:1", name = "living space: cohort + household members") %>%
   mutate(AantalBewoners = as.numeric(AantalBewoners),
          AantalBewoners = ifelse(AantalBewoners == 0, NA, AantalBewoners)) 
 
@@ -1410,14 +1464,21 @@ cohort_dat <- cohort_dat %>%
 # add 1 january data to adres tab to filter for home addresses at 1 jan
 adres_tab <- 
   adres_tab %>%
-  left_join(cohort_dat %>% select(RINPERSOONS, RINPERSOON, january)) %>%
-  filter(january %within% interval(GBADATUMAANVANGADRESHOUDING, GBADATUMEINDEADRESHOUDING)) 
+  checked_join(cohort_dat %>% ungroup() %>% select(RINPERSOONS, RINPERSOON, january),
+               by = person_keys, relationship = "m:1",
+               name = "living space: addresses + 1 January") %>%
+  filter(january %within% interval(GBADATUMAANVANGADRESHOUDING, GBADATUMEINDEADRESHOUDING)) %>%
+  # a move on 1 January gives two addresses on that date (the old spell ends and the
+  # new one starts that day): keep the new one, so there is one address per person
+  arrange(RINPERSOONS, RINPERSOON, desc(GBADATUMAANVANGADRESHOUDING)) %>%
+  distinct(RINPERSOONS, RINPERSOON, .keep_all = TRUE)
 
 
 # add home addresses to data
-cohort_dat <- left_join(cohort_dat, adres_tab %>% 
-                          select(RINPERSOONS, RINPERSOON, SOORTOBJECTNUMMER, RINOBJECTNUMMER),
-                        by = c("RINPERSOONS", "RINPERSOON"))
+cohort_dat <- checked_join(cohort_dat, adres_tab %>% 
+                             select(RINPERSOONS, RINPERSOON, SOORTOBJECTNUMMER, RINOBJECTNUMMER),
+                           by = person_keys, relationship = "1:1",
+                           name = "living space 34: cohort + home address")
 rm(adres_tab)
 
 # not merged
@@ -1439,16 +1500,22 @@ woon_tab <-
 # add 1 january data to woon tab to filter for home addresses at 1 jan
 woon_tab <- 
   woon_tab %>%
-  left_join(cohort_dat %>% select(SOORTOBJECTNUMMER, RINOBJECTNUMMER, january), 
-            by = c("SOORTOBJECTNUMMER", "RINOBJECTNUMMER")) %>%
+  # (many-to-many on purpose: a dwelling has one or more life cycles, and one or
+  # more cohort members, with their own 1 January; reduced to one row per dwelling
+  # and date right below)
+  left_join(cohort_dat %>% ungroup() %>% distinct(SOORTOBJECTNUMMER, RINOBJECTNUMMER, january), 
+            by = c("SOORTOBJECTNUMMER", "RINOBJECTNUMMER"), relationship = "many-to-many") %>%
   filter(january %within% interval(AANVLEVCYCLWOONNIETWOON, EINDLEVCYCLWOONNIETWOON)) %>%
-  unique()
+  # a dwelling rebuilt on 1 January has two life cycles on that date: keep the new one
+  arrange(SOORTOBJECTNUMMER, RINOBJECTNUMMER, january, desc(AANVLEVCYCLWOONNIETWOON)) %>%
+  distinct(SOORTOBJECTNUMMER, RINOBJECTNUMMER, january, .keep_all = TRUE)
 
 
 # add living space to data
-cohort_dat <- left_join(cohort_dat,
-                        woon_tab %>% select(SOORTOBJECTNUMMER, RINOBJECTNUMMER, VBOOPPERVLAKTE, january),
-                        by = c("SOORTOBJECTNUMMER", "RINOBJECTNUMMER", "january"))  %>%
+cohort_dat <- checked_join(cohort_dat,
+                           woon_tab %>% select(SOORTOBJECTNUMMER, RINOBJECTNUMMER, VBOOPPERVLAKTE, january),
+                           by = c("SOORTOBJECTNUMMER", "RINOBJECTNUMMER", "january"),
+                           relationship = "m:1", name = "living space: cohort + floor area")  %>%
   mutate(VBOOPPERVLAKTE = as.numeric(VBOOPPERVLAKTE))
 
 rm(woon_tab)
@@ -1471,9 +1538,19 @@ for (year in seq(as.integer(cfg$child_outcome_year_min - 1),
 }
 
 
+# only the dwellings of the cohort, one row per dwelling and year: a dwelling can
+# have several rows in EIGENDOMTAB (e.g. several owners); if their AantalBewoners
+# differ, the highest is taken
+household_members <- household_members %>%
+  semi_join(cohort_dat %>% ungroup() %>% distinct(SOORTOBJECTNUMMER, RINOBJECTNUMMER),
+            by = c("SOORTOBJECTNUMMER", "RINOBJECTNUMMER")) %>%
+  arrange(SOORTOBJECTNUMMER, RINOBJECTNUMMER, year, desc(AantalBewoners)) %>%
+  distinct(SOORTOBJECTNUMMER, RINOBJECTNUMMER, year, .keep_all = TRUE)
+
 cohort_dat <- 
   cohort_dat %>%
-  left_join(household_members, by = c("SOORTOBJECTNUMMER", "RINOBJECTNUMMER", "year")) %>%
+  checked_join(household_members, by = c("SOORTOBJECTNUMMER", "RINOBJECTNUMMER", "year"),
+               relationship = "m:1", name = "living space: cohort + household members") %>%
   mutate(AantalBewoners = as.numeric(AantalBewoners),
          AantalBewoners = ifelse(AantalBewoners == 0, NA, AantalBewoners)) 
 
@@ -1502,6 +1579,7 @@ not_merged_tab <-
 
 rm(household_members, woon_dat)
 
+check_keys(cohort_dat, person_keys, name = "cohort_dat after the living_space block")
 }   # living_space
 if (exists("adres_dat")) rm(adres_dat)
 
@@ -1591,6 +1669,7 @@ not_merged_tab <- not_merged_func(c('age_left_parents'))
 # free up memory
 rm(hh_tab, hh_tab_missing, age_tab, household_dat, hh_dat)
 
+check_keys(cohort_dat, person_keys, name = "cohort_dat after the age_left_parents block")
 }   # age_left_parents
 
 
@@ -1602,6 +1681,7 @@ source_versioned("src/lib", "young_parents")
 cohort_dat <- add_young_parents(cohort_dat,
                                 kind_path = file.path(loc$data_folder, loc$kind_data),
                                 gba_path  = file.path(loc$data_folder, loc$gba_data))
+check_keys(cohort_dat, person_keys, name = "cohort_dat after the young_parents block")
 }   # young_parents
 
 
@@ -1630,6 +1710,7 @@ cohort_dat <- add_household_poverty(cohort_dat,
 
 # not merged
 not_merged_tab <- not_merged_func('household_below_poverty')
+check_keys(cohort_dat, person_keys, name = "cohort_dat after the poverty block")
 }   # poverty
 
 
@@ -1642,6 +1723,7 @@ not_merged_tab <- not_merged_func('household_below_poverty')
 if (run_block("cumulation")) {
 source_versioned("src/lib", "poverty_cumulation")
 cohort_dat <- add_cumulation(cohort_dat)
+check_keys(cohort_dat, person_keys, name = "cohort_dat after the cumulation block")
 }   # cumulation
 
 
