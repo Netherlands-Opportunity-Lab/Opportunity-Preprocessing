@@ -146,8 +146,11 @@ categories).
   of at most one month and the area counting until its `einde`; and (2) are
   born within that organisation's cohort window ([C9]). Whether the JGZ saw
   them plays no role in the denominator; that is the numerator (`d_obs_cat`).
-  Verian's Apeldoorn is only left out when computing the cohort windows; the
-  regression do-file drops it. Windows and rules in `config/jgz_catchment.yml`
+  Verian's Apeldoorn is left out when computing the cohort windows and, since
+  18-11-2026, from the bereik cohort file of step 03 (`takeup_exclude`): it is
+  on the catchment list but not in the JGZ data, so all its children counted as
+  not seen (Verian take-up ~46%). Coen's `.dta` keeps it; the regression
+  do-file drops it. Windows and rules in `config/jgz_catchment.yml`
   (`catch_*`).
 - **Coverage per postcode area.** The earlier `catchment_area_calculations.R`
   (2019: share of never-moved children born 2010-2014 found in the JGZ ID

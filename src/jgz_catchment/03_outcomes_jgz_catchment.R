@@ -12,7 +12,8 @@
 #
 # "Seen" = any JGZ panel row in the contact-moment window, by any organisation
 # (setting catch_observed_same_org). Bereik is about where the child lives
-# (org_catchment, postcode_4), not which organisation saw the child.
+# (org_catchment, postcode_4), not which organisation saw the child. Areas
+# without JGZ data (takeup_exclude: Verian's Apeldoorn) are left out.
 #
 #   Input : the .rds copy of loc$catch_sample_file (output of 01)
 #   Output: output/jgz_catchment_cohort.rds, temp/jgz_catchment/03_sample_size.rds
@@ -28,6 +29,22 @@ catch <- readRDS(sub("\\.dta$", ".rds", loc$catch_sample_file))
 cohort_dat <- catch %>%
   mutate(RINPERSOONS = as_chr(rinpersoons), RINPERSOON = as_chr(rinpersoon)) %>%
   select(RINPERSOONS, RINPERSOON, everything(), -rinpersoons, -rinpersoon)
+
+# Leave out areas that are in an organisation's catchment list but not in its
+# JGZ data (cfg$takeup_exclude; Verian's Apeldoorn), as Coen's regression
+# do-file does. Otherwise every child there counts as "not seen": in the RA
+# run of 18-11-2026 Verian's take-up was ~46%, with Apeldoorn PC4s at 0.00-0.02
+# and the rest of Verian's area at 0.75-1.00. Coen's .dta (step 01) keeps
+# these children, because his do-file drops them itself.
+n_before <- nrow(cohort_dat)
+for (ex in cfg$takeup_exclude) {
+  if (!"gemeente" %in% names(cohort_dat)) stop("gemeente not in the catchment sample: cannot apply takeup_exclude")
+  drop <- as.numeric(haven::zap_labels(cohort_dat$org_catchment)) %in% ex$org &
+    cohort_dat$gemeente %in% unlist(ex$gemeente)
+  message(sprintf("takeup_exclude: %d children of org %s in %s left out", sum(drop), ex$org,
+                  paste(unlist(ex$gemeente), collapse = ", ")))
+  cohort_dat <- cohort_dat[!drop, , drop = FALSE]
+}
 
 for (age in names(cfg$takeup_ages)) {
   src_col <- paste0("d_observed_", cfg$takeup_ages[[age]])
@@ -48,7 +65,7 @@ check_keys_jgz(cohort_dat, c("RINPERSOONS", "RINPERSOON"), "catchment outcomes")
 print(round(colMeans(cohort_dat[, grep("^y_m", names(cohort_dat), value = TRUE)], na.rm = TRUE), 3))
 print(table(org_catchment = cohort_dat$org_catchment, useNA = "ifany"))
 
-sample_size <- tibble::tibble(n_1_catchment_sample = nrow(cohort_dat))
+sample_size <- tibble::tibble(n_1_catchment_sample = n_before, n_2_after_takeup_exclude = nrow(cohort_dat))
 saveRDS(sample_size, file.path(loc$temp_folder, "03_sample_size.rds"))
 saveRDS(cohort_dat, file.path(loc$output_folder, paste0(cfg$cohort_name, "_cohort.rds")))
 message("Written: ", file.path(loc$output_folder, paste0(cfg$cohort_name, "_cohort.rds")))

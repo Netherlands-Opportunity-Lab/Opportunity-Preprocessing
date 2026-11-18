@@ -55,6 +55,12 @@ default:
     catch_cohort_exclude:
       org: 10
       gemeente: ["Apeldoorn"]
+    # Left out of the bereik cohort file (step 03): areas on the catchment list
+    # without JGZ data, as Coen's regression do-file drops them (18-11-2026:
+    # with Apeldoorn kept, Verian's take-up was ~46% instead of ~97%). A list
+    # of {org, gemeente}; the .dta of step 01 still has them.
+    takeup_exclude:
+      - {org: 10, gemeente: ["Apeldoorn"]}
     # Corrections to the PC4 file (Coen: Verian's 8080 is 8180; 8080 is
     # otherwise listed for both Verian and org12)
     catch_pc4_corrections:
