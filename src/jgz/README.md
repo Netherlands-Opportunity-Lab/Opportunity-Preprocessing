@@ -48,31 +48,31 @@ They still read the contact-moment files of 01c; to do: read
 | Step | Script | Input | Output | What it does |
 |---|---|---|---|---|
 | 01 | `01_cohort_jgz_catchment.R` | panel (jgz 01a), GBA, KINDOUDER, income, education and health-cost files, `resources/jgz_pc4gebieden.csv` | `Data_CatchmentArea_3pooled_withvariables_R.dta` (+ `.rds`) | Coen's catchment-area sample for the bereik analyses: children living in one organisation's area from 22 to 53 months, observed or not at 2y/3y/3y9m (`d_obs_cat`), with child and family characteristics (step 02 is part of it). Variable names as in Coen's file, so the bereik regression do-file runs on it |
-| 03 | `03_outcomes_jgz_catchment.R` | 01 | `output/jgz_catchment_cohort.rds` | The bereik outcomes under the JGZ names: `y_m24_takeup`, `y_m36_takeup`, `y_m45_takeup` (seen at 2y / 3y / 3y9m), `y_m45_takeup_always`, `y_m45_takeup_any`, all with the same denominator |
+| 03 | `03_outcomes_jgz_catchment.R` | 01 | `output/jgz_catchment_cohort.rds` | The bereik outcomes under the JGZ names: `m024_takeup`, `m036_takeup`, `m045_takeup` (seen at 2y / 3y / 3y9m), `m045_takeup_always`, `m045_takeup_any`, all with the same denominator |
 | 05 (optional) | `05_coverage_per_pc4.R` | panel (jgz 01a), GBA, GBAADRESOBJECTBUS, VSLPOSTCODEBUS, `resources/jgz_pc4gebieden.csv` | `coverage_per_pc4.xlsx` | Check of the catchment areas (Bastian, 27-10-2026): coverage per PC4 x contact moment for every PC4 in the JGZ data, the PC4s *not* in the PC4 file with coverage above 20%, and those per calendar year. Internal only (small counts) |
 
 ## Outcomes (jgz step 03)
 
 The list follows `JGZ_outcomes_concept.xlsx` (SharePoint, "Background info
 preprocessing JGZ", 10-11-2026). Every choice is a setting in `config/jgz.yml`.
-Names: `y_m<age in months>_<outcome>`; file names add the version prefix
-(`Y_1_0_m24_bmi_p90`). Infant contacts: 4 weeks = m1, 8 weeks = m2 (the
-7.5-month visit falls in the 6-month window). School groups: groep 2 = m60,
+Names (Bastian, 20-11-2026): the age in months comes first, as `c16_` in the other cohorts, with three digits so names sort by age: `m<age in months, 3 digits>_<outcome>` (was `y_m<age>_<outcome>`); the same label in `pc4_`, `pc3_`, `org_`, `income_parents_` per age. File names add the version prefix
+(`Y_1_0_m024_bmi_p90`). Infant contacts: 4 weeks = m001, 8 weeks = m002 (the
+7.5-month visit falls in the 6-month window). School groups: groep 2 = m060,
 groep 7 = m120. Klas 2 (m162) was dropped on 16-11-2026: with JGZ data
 up to 2018 only children born early 2005 reach 13.5 years (31 children).
 
 | Domain | Outcomes | Ages | Definition |
 |---|---|---|---|
-| BMI | `y_m<age>_bmi`, `_bmi_p90`, `_bmi_p10` | m1 m2 m3 m4 m6 m9 m11 m14 m18 m24 m36 m45 m60 m120 | BMI; above the 90th / below the 10th percentile of all children measured at that age (same cut-off for every area; within sex by default, `bmi_cutoffs_by_sex`). Outliers with \|z\| > 5 (within age x sex) set to missing |
-| Van Wiechen | `y_m24_words2_*` (41), `y_m24_bodyparts_*` (42), `y_m24_me_i_*` (43), `y_m24_pictures` (44), `y_m36_words3_*` (45), `y_m36_intelligible_familiar_*` (46), `y_m45_questions_*` (48), `y_m45_intelligible` (49), `y_m45_questions2_*` (50), `y_m<age>_language_delay` | m24, m36, m45 | `_can` = + or M (professional or parent), `_notseen` = - or M (not seen by the professional); items 44 and 49 have no M: `pictures` and `intelligible` = +. `language_delay` = at least one core item scored - (41+42 / 45+46 / 48+49+50), only for children with all core items scored; not Coen's overall judgement, whose share "langzaam" differs too much between organisations |
-| SDQ | `y_m<age>_sdq11`; `y_m<age>_sdq` (total score) | m45 m60 m120; score m60 m120 | total score >= 11 (`sdq_cutoff`), and the score itself for means (not at 3y9m, `sdq_score_ages`); scores above 40 set to missing. At 3y9m partly the DMO protocol instead of the SDQ |
-| Visus | `y_m<age>_visus` | m36 m45 | conclusion of the vision test (`visus_c`) = onvoldoende (`visus_abnormal`); voldoende and twijfelachtig = 0 |
+| BMI | `m<age>_bmi`, `_bmi_p90`, `_bmi_p10` | m001 m002 m003 m004 m006 m009 m011 m014 m018 m024 m036 m045 m060 m120 | BMI; above the 90th / below the 10th percentile of all children measured at that age (same cut-off for every area; within sex by default, `bmi_cutoffs_by_sex`). Outliers with \|z\| > 5 (within age x sex) set to missing |
+| Van Wiechen | `m024_words2_*` (41), `m024_bodyparts_*` (42), `m024_me_i_*` (43), `m024_pictures` (44), `m036_words3_*` (45), `m036_intelligible_familiar_*` (46), `m045_questions_*` (48), `m045_intelligible` (49), `m045_questions2_*` (50), `m<age>_language_delay` | m024, m036, m045 | `_can` = + or M (professional or parent), `_notseen` = - or M (not seen by the professional); items 44 and 49 have no M: `pictures` and `intelligible` = +. `language_delay` = at least one core item scored - (41+42 / 45+46 / 48+49+50), only for children with all core items scored; not Coen's overall judgement, whose share "langzaam" differs too much between organisations |
+| SDQ | `m<age>_sdq11`; `m<age>_sdq` (total score) | m045 m060 m120; score m060 m120 | total score >= 11 (`sdq_cutoff`), and the score itself for means (not at 3y9m, `sdq_score_ages`); scores above 40 set to missing. At 3y9m partly the DMO protocol instead of the SDQ |
+| Visus | `m<age>_visus` | m036 m045 | conclusion of the vision test (`visus_c`) = onvoldoende (`visus_abnormal`); voldoende and twijfelachtig = 0 |
 | Per age | `pc4_m<age>`, `pc3_m<age>`, `org_m<age>` | all | GBA postcode and organisation of the contact closest to the nominal age, for the maps and for the export rules per organisation |
 
 One measurement per child per age: the one closest to the nominal age
 (`outcome_target_days`) among the contact moments listed for that age, per
-item. Van Wiechen at m24 uses the 18-month and 2-year contacts, at m36 the 3y
-contact, at m45 the 3y and 3y9m contacts (as the map tables). Items and ages
+item. Van Wiechen at m024 uses the 18-month and 2-year contacts, at m036 the 3y
+contact, at m045 the 3y and 3y9m contacts (as the map tables). Items and ages
 follow the filled cells of the 2019 descriptives (sheet D8,
 `20190208BR Descriptives bijgeschaafd.xlsx`; checked 11-11-2026): visus is
 not used at groep 2 (545 conclusions; recorded there as a Landolt-C result). Open choices for Bastian: p90/p10
@@ -156,7 +156,7 @@ categories).
   (2019: share of never-moved children born 2010-2014 found in the JGZ ID
   file, per PC2/PC3) is removed: the official PC4 catchment file and the
   catchment sample replace it. Coverage *within* the catchment areas comes from
-  `output/jgz_catchment_cohort.rds` (`y_m<age>_takeup` by `postcode_4` or `org_catchment`).
+  `output/jgz_catchment_cohort.rds` (`m<age>_takeup` by `postcode_4` or `org_catchment`).
 - **Check of the catchment areas (catchment 05) -- agreed 27 Oct 2026.** Is Coen's PC4
   list complete? 05 computes the coverage for every PC4 where the JGZ saw at
   least one child: denominator = all children in GBA (born in the catchment range)

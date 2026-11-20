@@ -207,7 +207,7 @@ reference_children <- function(gba_path, kindouder_path, birth_years) {
 #'
 #' @param cohort children (key, mother ids, birthdate).
 #' @param reference NULL or reference children (same columns).
-#' @param ages_days named vector: age label (e.g. "m24") -> age in days.
+#' @param ages_days named vector: age label (e.g. "m024") -> age in days.
 #' @param income_years c(first, last) available income year.
 #' @return tibble with `key` and, per age label a, income_parents_<a> and
 #'   income_parents_perc_<a>; only children with an income at one age or more.

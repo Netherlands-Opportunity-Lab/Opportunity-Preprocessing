@@ -6,9 +6,9 @@
 # with the bereik outcomes under the JGZ names (27-10-2026: per contact moment,
 # plus "always" and "at least once", all with the same denominator):
 #
-#   y_m24_takeup, y_m36_takeup, y_m45_takeup   seen by the JGZ at 2y / 3y / 3y9m
-#   y_m45_takeup_always                        seen at all three
-#   y_m45_takeup_any                           seen at least once
+#   m024_takeup, m036_takeup, m045_takeup   seen by the JGZ at 2y / 3y / 3y9m
+#   m045_takeup_always                        seen at all three
+#   m045_takeup_any                           seen at least once
 #
 # "Seen" = any JGZ panel row in the contact-moment window, by any organisation
 # (setting catch_observed_same_org). Bereik is about where the child lives
@@ -49,20 +49,20 @@ for (ex in cfg$takeup_exclude) {
 for (age in names(cfg$takeup_ages)) {
   src_col <- paste0("d_observed_", cfg$takeup_ages[[age]])
   if (!src_col %in% names(cohort_dat)) stop(src_col, " not in the catchment sample")
-  cohort_dat[[paste0("y_", age, "_takeup")]] <- as.integer(haven::zap_labels(cohort_dat[[src_col]]))
+  cohort_dat[[paste0(age, "_takeup")]] <- as.integer(haven::zap_labels(cohort_dat[[src_col]]))
 }
-take_cols <- paste0("y_", names(cfg$takeup_ages), "_takeup")
+take_cols <- paste0(names(cfg$takeup_ages), "_takeup")
 n_seen <- rowSums(as.matrix(cohort_dat[, take_cols]))
 last_age <- utils::tail(names(cfg$takeup_ages), 1)
-cohort_dat[[paste0("y_", last_age, "_takeup_always")]] <- as.integer(n_seen == length(take_cols))
-cohort_dat[[paste0("y_", last_age, "_takeup_any")]]    <- as.integer(n_seen > 0)
+cohort_dat[[paste0(last_age, "_takeup_always")]] <- as.integer(n_seen == length(take_cols))
+cohort_dat[[paste0(last_age, "_takeup_any")]]    <- as.integer(n_seen > 0)
 
 # same definition as Coen's d_observed_3cms (ever seen) -- a check, not a choice
-stopifnot(all(cohort_dat[[paste0("y_", last_age, "_takeup_any")]] ==
+stopifnot(all(cohort_dat[[paste0(last_age, "_takeup_any")]] ==
                 as.integer(haven::zap_labels(cohort_dat$d_observed_3cms)), na.rm = TRUE))
 check_keys_jgz(cohort_dat, c("RINPERSOONS", "RINPERSOON"), "catchment outcomes")
 
-print(round(colMeans(cohort_dat[, grep("^y_m", names(cohort_dat), value = TRUE)], na.rm = TRUE), 3))
+print(round(colMeans(cohort_dat[, grep("^m[0-9]{3}_", names(cohort_dat), value = TRUE)], na.rm = TRUE), 3))
 print(table(org_catchment = cohort_dat$org_catchment, useNA = "ifany"))
 
 sample_size <- tibble::tibble(n_1_catchment_sample = n_before, n_2_after_takeup_exclude = nrow(cohort_dat))

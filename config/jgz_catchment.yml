@@ -88,10 +88,10 @@ default:
                              NOPZVWKGGZMV, NOPZVWKGGZZVINST, NOPZVWKGGZZVZELF, NOPZVWKGGZOVERIG]
 
     # --- 03_outcomes_jgz_catchment.R ----------------------------------------------
-    # Bereik outcomes (y_m<age>_takeup, y_m45_takeup_always, y_m45_takeup_any)
+    # Bereik outcomes (m<age>_takeup, m045_takeup_always, m045_takeup_any)
     # from the "observed" flags of 01, per contact moment with the same
     # denominator (27-10-2026). Ages in months of the three windows above.
-    takeup_ages: {m24: "2y", m36: "3y", m45: "3y9m"}
+    takeup_ages: {m024: "2y", m036: "3y", m045: "3y9m"}
 
     # --- 05_coverage_per_pc4.R (optional) -----------------------------------------
     # Coverage (bereik) per PC4 in the JGZ data, to check the catchment areas
@@ -158,5 +158,5 @@ default:
     optional_scripts: ["05_coverage_per_pc4"]
 
   final_checks:
-    expected_columns: ["y_m24_takeup", "y_m36_takeup", "y_m45_takeup", "y_m45_takeup_always",
-                       "y_m45_takeup_any", "org_catchment", "postcode_4"]
+    expected_columns: ["m024_takeup", "m036_takeup", "m045_takeup", "m045_takeup_always",
+                       "m045_takeup_any", "org_catchment", "postcode_4"]

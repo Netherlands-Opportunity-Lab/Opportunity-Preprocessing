@@ -65,8 +65,8 @@ default:
     # y_<a>_*. Wealth is still taken in the birth year and ranked within the
     # cohort (not part of the 20-11 decision).
     cpi_base_year: 2024
-    income_outcome_ages: ["m1", "m2", "m3", "m4", "m6", "m9", "m11", "m14", "m18",
-                          "m24", "m36", "m45", "m60", "m120"]
+    income_outcome_ages: ["m001", "m002", "m003", "m004", "m006", "m009", "m011", "m014", "m018",
+                          "m024", "m036", "m045", "m060", "m120"]
     income_window_years: 5
     income_min_years: 1
     income_rank_population: "national"
@@ -82,55 +82,55 @@ default:
 
     # --- 03_outcomes_jgz.R ------------------------------------------------------
     # Outcome list: JGZ_outcomes_concept.xlsx (SharePoint, Background info
-    # preprocessing JGZ, 10-11-2026). Variable names y_m<age in months>_<outcome>;
-    # file names add the version prefix (Y_1_0_m24_bmi_p90). The bereik outcomes
+    # preprocessing JGZ, 10-11-2026). Variable names m<age in months, 3 digits>_<outcome>;
+    # file names add the version prefix (Y_1_0_m024_bmi_p90). The bereik outcomes
     # are in config/jgz_catchment.yml.
     #
     # One measurement per child per age: the one closest to the nominal age
     # (outcome_target_days) among the contact moments listed for that age
     # (decided 23-10-2026), per item when an age combines several items. The
     # contact-moment windows are those of 01c_contact_moments.R.
-    outcome_target_days: {m1: 28, m2: 56, m3: 90, m4: 120, m6: 181, m9: 273, m11: 334, m14: 426, m18: 547,
-                          m24: 730, m36: 1095, m45: 1368, m60: 2190, m120: 3819}
+    outcome_target_days: {m001: 28, m002: 56, m003: 90, m004: 120, m006: 181, m009: 273, m011: 334, m014: 426, m018: 547,
+                          m024: 730, m036: 1095, m045: 1368, m060: 2190, m120: 3819}
 
-    # BMI (y_m<age>_bmi, _bmi_p90, _bmi_p10). Outliers: |z| > bmi_z_max, z
+    # BMI (m<age>_bmi, _bmi_p90, _bmi_p10). Outliers: |z| > bmi_z_max, z
     # within age x sex, are set to missing (as the map tables). The p90 and
     # p10 cut-offs are computed over all children measured at that age, so they
     # are the same for every area (27-10-2026); within sex (TRUE) or boys and
     # girls together (FALSE, as Coen) -- to confirm with Bastian.
     # Infant contacts added 11-11-2026 (all well filled in the 2019 descriptives,
-    # 22k-43k per contact). m1 = 4 weeks, m2 = 8 weeks; the 7.5-month visit falls
+    # 22k-43k per contact). m001 = 4 weeks, m002 = 8 weeks; the 7.5-month visit falls
     # in the 6-month window of 01c, so it has no age of its own.
     # m162 (klas 2) dropped 16-11-2026: with JGZ data up to 2018 only children
     # born early 2005 reach 13.5 years (31 BMI, 25 SDQ in the RA run). The
     # klas2 contact moment stays in 01c.
-    bmi_ages: {m1: ["4wks"], m2: ["8wks"], m3: ["3months"], m4: ["4months"], m6: ["6months"],
-               m9: ["9months"], m11: ["11months"], m14: ["14months"], m18: ["18months"],
-               m24: ["2years"], m36: ["3years"], m45: ["3years9m"],
-               m60: ["groep2"], m120: ["groep7"]}
+    bmi_ages: {m001: ["4wks"], m002: ["8wks"], m003: ["3months"], m004: ["4months"], m006: ["6months"],
+               m009: ["9months"], m011: ["11months"], m014: ["14months"], m018: ["18months"],
+               m024: ["2years"], m036: ["3years"], m045: ["3years9m"],
+               m060: ["groep2"], m120: ["groep7"]}
     bmi_z_max: 5
     bmi_cutoffs_by_sex: TRUE
 
     # Van Wiechen items, scored + / - / M (M = only reported by the parent).
     # Two binary outcomes per item (Bastian, 20-10-2026):
-    #   y_m<age>_<item>_can     = + or M  (can, according to professional or parent)
-    #   y_m<age>_<item>_notseen = - or M  (not seen by the professional)
-    # Items without an M option (wiechen_no_m) get one outcome: y_m<age>_<item>
-    # = + (seen by the professional). y_m<age>_language_delay: see
+    #   m<age>_<item>_can     = + or M  (can, according to professional or parent)
+    #   m<age>_<item>_notseen = - or M  (not seen by the professional)
+    # Items without an M option (wiechen_no_m) get one outcome: m<age>_<item>
+    # = + (seen by the professional). m<age>_language_delay: see
     # language_delay_items below.
     # NB disclosure: _can and _notseen of one item together with N give all
     # three categories; decide with Bastian which is exported.
     # Items and ages follow the filled cells of the 2019 descriptives (sheet D8.2,
     # "20190208BR Descriptives bijgeschaafd.xlsx"; checked 11-11-2026): 41/42 at
     # 2 years, 45/46 at 3 years, 48/49/50 at 3y9m.
-    wiechen_ages: {m24: ["18months", "2years"], m36: ["3years"], m45: ["3years", "3years9m"]}
+    wiechen_ages: {m024: ["18months", "2years"], m036: ["3years"], m045: ["3years", "3years9m"]}
     wiechen_items:
-      m24: {words2: "zin2w", bodyparts: "pop6", me_i: "noemt", pictures: "wijstaan"}
-      m36: {words3: "zin3w", intelligible_familiar: "verstaan1"}
-      m45: {questions: "vragen1", intelligible: "verstaan2", questions2: "vragen2"}
+      m024: {words2: "zin2w", bodyparts: "pop6", me_i: "noemt", pictures: "wijstaan"}
+      m036: {words3: "zin3w", intelligible_familiar: "verstaan1"}
+      m045: {questions: "vragen1", intelligible: "verstaan2", questions2: "vragen2"}
     # items 44 (wijstaan) and 49 (verstaan2) are only scored + / -
     wiechen_no_m: ["intelligible", "pictures"]
-    # y_m<age>_language_delay = at least one CORE item of that age scored -,
+    # m<age>_language_delay = at least one CORE item of that age scored -,
     # only for children with all core items scored (language_delay_complete),
     # so every child is judged on the same items (decided 11-11-2026). Core =
     # the best-filled items (2019 descriptives, D8.2); 43/44 at 2 years are
@@ -139,30 +139,30 @@ default:
     # "langzaam" differs too much between organisations (D4: Limburg-Noord 19%,
     # ZONL 83%, Verian 71%), which points at selective registration.
     language_delay_items:
-      m24: ["words2", "bodyparts"]
-      m36: ["words3", "intelligible_familiar"]
-      m45: ["questions", "intelligible", "questions2"]
+      m024: ["words2", "bodyparts"]
+      m036: ["words3", "intelligible_familiar"]
+      m045: ["questions", "intelligible", "questions2"]
     language_delay_complete: TRUE
 
-    # SDQ total score (y_m<age>_sdq<cutoff> = score >= cutoff). Scores above
+    # SDQ total score (m<age>_sdq<cutoff> = score >= cutoff). Scores above
     # sdq_max are impossible (range 0-40) and set to missing. At 3y9m (11k
     # scores in the 2019 descriptives) part of the questionnaires is the DMO
     # protocol instead of the SDQ (sheet D8.6).
-    sdq_ages: {m45: ["3years9m"], m60: ["groep2"], m120: ["groep7"]}
-    # y_m<age>_sdq = the total score itself (for means: more stable in small
+    sdq_ages: {m045: ["3years9m"], m060: ["groep2"], m120: ["groep7"]}
+    # m<age>_sdq = the total score itself (for means: more stable in small
     # areas and in the gradients, and independent of the cut-off), added
-    # 11-11-2026. Not at m45, where part of the scores come from the DMO protocol.
-    sdq_score_ages: ["m60", "m120"]
+    # 11-11-2026. Not at m045, where part of the scores come from the DMO protocol.
+    sdq_score_ages: ["m060", "m120"]
     sdq_cutoff: 11
     sdq_max: 40
 
-    # Visus: y_m<age>_visus = 1 when the conclusion of the vision test (visus_c)
+    # Visus: m<age>_visus = 1 when the conclusion of the vision test (visus_c)
     # is in visus_abnormal, 0 when it is in visus_normal, missing otherwise.
     # Codebook: 1 voldoende, 2 twijfelachtig, 3 onvoldoende. Default:
     # "afwijkend" = onvoldoende; twijfelachtig counts as not abnormal -- to confirm.
     # Not at groep 2: only 545 conclusions there (2019 descriptives, D8.3); the
     # vision test at groep 2 is recorded as a Landolt-C result instead (11-11-2026).
-    visus_ages: {m36: ["3years"], m45: ["3years9m"]}
+    visus_ages: {m036: ["3years"], m045: ["3years9m"]}
     visus_abnormal: ["3", "onvoldoende"]
     visus_normal: ["1", "2", "voldoende", "twijfelachtig"]
 
@@ -227,21 +227,21 @@ default:
 
   final_checks:
     # Checked on output/jgz_cohort.rds at the end of the run (check_final_cohort())
-    expected_columns: ["income_parents_m24", "income_parents_perc_m24", "income_parents_perc_m45",
-                       "income_parents_perc_m120", "income_group_m24",
+    expected_columns: ["income_parents_m024", "income_parents_perc_m024", "income_parents_perc_m045",
+                       "income_parents_perc_m120", "income_group_m024",
                        "migration_background", "type_household", "parents_education",
-                       "y_m24_bmi", "y_m24_bmi_p90", "y_m24_bmi_p10", "y_m36_bmi_p90", "y_m45_bmi_p90",
-                       "y_m60_bmi_p90", "y_m120_bmi_p90",
-                       "y_m1_bmi_p90", "y_m6_bmi_p90", "y_m18_bmi_p90",
-                       "y_m24_words2_can", "y_m24_words2_notseen", "y_m24_bodyparts_can", "y_m24_bodyparts_notseen",
-                       "y_m24_me_i_can", "y_m24_me_i_notseen", "y_m24_pictures",
-                       "y_m24_language_delay", "y_m36_words3_can", "y_m36_words3_notseen",
-                       "y_m36_intelligible_familiar_can", "y_m36_intelligible_familiar_notseen", "y_m36_language_delay",
-                       "y_m45_questions_can", "y_m45_questions_notseen",
-                       "y_m45_intelligible", "y_m45_questions2_can", "y_m45_questions2_notseen",
-                       "y_m45_language_delay", "y_m45_sdq11", "y_m60_sdq11", "y_m120_sdq11",
-                       "y_m60_sdq", "y_m120_sdq",
-                       "y_m36_visus", "y_m45_visus",
-                       "pc4_m24", "pc4_m36", "pc4_m45", "org_m24", "org_m36", "org_m45"]
+                       "m024_bmi", "m024_bmi_p90", "m024_bmi_p10", "m036_bmi_p90", "m045_bmi_p90",
+                       "m060_bmi_p90", "m120_bmi_p90",
+                       "m001_bmi_p90", "m006_bmi_p90", "m018_bmi_p90",
+                       "m024_words2_can", "m024_words2_notseen", "m024_bodyparts_can", "m024_bodyparts_notseen",
+                       "m024_me_i_can", "m024_me_i_notseen", "m024_pictures",
+                       "m024_language_delay", "m036_words3_can", "m036_words3_notseen",
+                       "m036_intelligible_familiar_can", "m036_intelligible_familiar_notseen", "m036_language_delay",
+                       "m045_questions_can", "m045_questions_notseen",
+                       "m045_intelligible", "m045_questions2_can", "m045_questions2_notseen",
+                       "m045_language_delay", "m045_sdq11", "m060_sdq11", "m120_sdq11",
+                       "m060_sdq", "m120_sdq",
+                       "m036_visus", "m045_visus",
+                       "pc4_m024", "pc4_m036", "pc4_m045", "org_m024", "org_m036", "org_m045"]
     ranges:
       birthdate: [child_birth_date_min, child_birth_date_max]

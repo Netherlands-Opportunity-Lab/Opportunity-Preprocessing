@@ -9,25 +9,25 @@ suppressPackageStartupMessages({
 source(file.path(root, "src", "lib", "sql_helpers.R"))
 source(file.path(root, "src", "lib", "P_2_1_parent_income.R"))
 
-# mother m1 has two children born in different years; m2 one child; m3 only
-# negative income; m4 no income records at all
+# mother m001 has two children born in different years; m002 one child; m003 only
+# negative income; m004 no income records at all
 toy_children <- tibble(
   RINPERSOONS = "R",
   RINPERSOON  = c("k1", "k2", "k3", "k4", "k5"),
   CBKSoortNr_Moeder = "R",
-  Rinpersoon_Moeder = c("m1", "m1", "m2", "m3", "m4"),
+  Rinpersoon_Moeder = c("m001", "m001", "m002", "m003", "m004"),
   birth_year  = c(2010L, 2013L, 2010L, 2010L, 2010L))
 
 toy_income <- tibble(
   RINPERSOONS = "R",
-  RINPERSOON  = c(rep("m1", 7), rep("m2", 2), "m3", "m3"),
+  RINPERSOON  = c(rep("m001", 7), rep("m002", 2), "m003", "m003"),
   year        = c(2009:2015, 2010L, 2011L, 2009L, 2010L),
   household_income = c(10, 20, 30, 40, 50, 60, 70,   100, NA,   -5, -5))
 
 test_that("child_income_window: default window is the year before birth and the birth year", {
   out <- child_income_window(toy_children, toy_income)
   expect_equal(out$RINPERSOON, c("k1", "k2", "k3"))
-  # k1: 2009-2010 of m1; k2: 2012-2013 of m1 (per child, not per mother); k3: only 2010 known
+  # k1: 2009-2010 of m001; k2: 2012-2013 of m001 (per child, not per mother); k3: only 2010 known
   expect_equal(out$household_income, c(15, 45, 100))
   expect_equal(out$household_income_n, c(2L, 2L, 1L))
 })
@@ -102,7 +102,7 @@ test_that("reference_children: everyone born in the years with a non-G mother, f
                  RINPERSOON = c("k1", "k2", "k3", "k4", "k5"),
                  RINPERSOONSpa = rins(rep("R", 5)), RINPERSOONpa = "f",
                  RINPERSOONSMa = rins(c("R", "R", "R", "R", "G")),
-                 RINPERSOONMa = c("m1", "m2", "m3", "m4", "m5"))
+                 RINPERSOONMa = c("m001", "m002", "m003", "m004", "m005"))
   write_sav(gba, file.path(d, "GBAPERSOON.sav"))
   write_sav(kind, file.path(d, "KINDOUDER.sav"))
 
@@ -110,7 +110,7 @@ test_that("reference_children: everyone born in the years with a non-G mother, f
   # k1 born 2009 and k4 born 2012 are outside; k5 has a G mother; k6 has no KINDOUDER row
   expect_equal(sort(out$RINPERSOON), c("k2", "k3"))
   expect_equal(out$birth_year[out$RINPERSOON == "k2"], 2010L)
-  expect_equal(out$Rinpersoon_Moeder[out$RINPERSOON == "k3"], "m3")
+  expect_equal(out$Rinpersoon_Moeder[out$RINPERSOON == "k3"], "m003")
   expect_equal(out$birthdate[out$RINPERSOON == "k3"], as.Date("2011-03-15"))
 
   # .db with the birth year stored as INTEGER: the year filter must still match
@@ -157,18 +157,18 @@ test_that("income_by_outcome_age: 5 years up to the year the age is reached, ran
       mutate(household_income = as.numeric(sub("m", "", RINPERSOON)) * 1000),
     tibble(RINPERSOON = "mA", year = yrs, household_income = (yrs - 2003) * 1000)) %>%
     mutate(RINPERSOONS = "R")
-  # reference: 20 children born 2010-03-01 (reach 24 months in 2012), mothers m01..m20
+  # reference: 20 children born 2010-03-01 (reach 24 months in 2012), mothers m001..m020
   ref <- tibble(RINPERSOONS = "R", RINPERSOON = sprintf("r%02d", 1:20), CBKSoortNr_Moeder = "R",
                 Rinpersoon_Moeder = sprintf("m%02d", 1:20), birthdate = as.Date("2010-03-01"))
-  # cohort child c1 of mA born 2010-03-01: m24 reached in 2012 -> window 2008-2012
+  # cohort child c1 of mA born 2010-03-01: m024 reached in 2012 -> window 2008-2012
   coh <- tibble(RINPERSOONS = factor("R"), RINPERSOON = "c1", CBKSoortNr_Moeder = "R",
                 Rinpersoon_Moeder = "mA", birthdate = as.Date("2010-03-01"))
-  out <- income_by_outcome_age(coh, ref, inc, ages_days = c(m24 = 730, m120 = 3819),
+  out <- income_by_outcome_age(coh, ref, inc, ages_days = c(m024 = 730, m120 = 3819),
                                window_years = 5, income_years = c(2004, 2018))
   # mA: 2008..2012 -> 5..9 thousand, mean 7000
-  expect_equal(out$income_parents_m24, 7000)
-  # rank among the 21 children reaching 24 months in 2012: 7000 ties with m07 -> 7.5 / 21
-  expect_equal(out$income_parents_perc_m24, 7.5 / 21)
+  expect_equal(out$income_parents_m024, 7000)
+  # rank among the 21 children reaching 24 months in 2012: 7000 ties with m007 -> 7.5 / 21
+  expect_equal(out$income_parents_perc_m024, 7.5 / 21)
   # m120 is reached in 2020: window 2016-2020 is not within the income years -> no column values
   expect_true(all(is.na(out$income_parents_m120)))
   expect_true(all(is.na(out$income_parents_perc_m120)))
@@ -176,18 +176,18 @@ test_that("income_by_outcome_age: 5 years up to the year the age is reached, ran
 
   # children in the reference who reach 24 months in another year do not count
   ref2 <- bind_rows(ref, tibble(RINPERSOONS = "R", RINPERSOON = "late", CBKSoortNr_Moeder = "R",
-                                Rinpersoon_Moeder = "m01", birthdate = as.Date("2011-03-01")))
-  out2 <- income_by_outcome_age(coh, ref2, inc, ages_days = c(m24 = 730), income_years = c(2004, 2018))
-  expect_equal(out2$income_parents_perc_m24, 7.5 / 21)
+                                Rinpersoon_Moeder = "m001", birthdate = as.Date("2011-03-01")))
+  out2 <- income_by_outcome_age(coh, ref2, inc, ages_days = c(m024 = 730), income_years = c(2004, 2018))
+  expect_equal(out2$income_parents_perc_m024, 7.5 / 21)
 
   # within the cohort only (no reference): the only child has rank 1
-  out3 <- income_by_outcome_age(coh, NULL, inc, ages_days = c(m24 = 730), income_years = c(2004, 2018))
-  expect_equal(out3$income_parents_perc_m24, 1)
+  out3 <- income_by_outcome_age(coh, NULL, inc, ages_days = c(m024 = 730), income_years = c(2004, 2018))
+  expect_equal(out3$income_parents_perc_m024, 1)
 
   # a child with no income at any age is dropped
   coh4 <- bind_rows(coh, tibble(RINPERSOONS = factor("R"), RINPERSOON = "c2", CBKSoortNr_Moeder = "R",
                                 Rinpersoon_Moeder = "nobody", birthdate = as.Date("2010-03-01")))
-  out4 <- income_by_outcome_age(coh4, ref, inc, ages_days = c(m24 = 730), income_years = c(2004, 2018))
+  out4 <- income_by_outcome_age(coh4, ref, inc, ages_days = c(m024 = 730), income_years = c(2004, 2018))
   expect_equal(out4$RINPERSOON, "c1")
 })
 

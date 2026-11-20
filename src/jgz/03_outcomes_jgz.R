@@ -4,18 +4,18 @@
 # Adds the JGZ outcomes to the cohort (one row per child), from the
 # contact-moment files of 01c. The outcome list and every choice in it are in
 # config/jgz.yml (data_preparation, "03_outcomes_jgz.R"); the functions are in
-# src/lib/P_2_1_jgz_outcomes.R. Names: y_m<age in months>_<outcome>.
+# src/lib/P_2_1_jgz_outcomes.R. Names: m<age in months, 3 digits>_<outcome>.
 #
-#   BMI          y_m<age>_bmi, _bmi_p90, _bmi_p10      m1 m2 m3 m4 m6 m9 m11 m14 m18
-#                                                      m24 m36 m45 m60 m120
-#   Van Wiechen  y_m24_words2_can/_notseen, y_m24_bodyparts_can/_notseen,
-#                y_m24_me_i_can/_notseen, y_m24_pictures,
-#                y_m36_words3_can/_notseen, y_m36_intelligible_familiar_can/_notseen,
-#                y_m45_questions_can/_notseen, y_m45_intelligible,
-#                y_m45_questions2_can/_notseen, y_m<age>_language_delay
-#   SDQ          y_m<age>_sdq11                        m45 m60 m120
-#                y_m<age>_sdq (total score)            m60 m120
-#   Visus        y_m<age>_visus                        m36 m45
+#   BMI          m<age>_bmi, _bmi_p90, _bmi_p10      m001 m002 m003 m004 m006 m009 m011 m014 m018
+#                                                      m024 m036 m045 m060 m120
+#   Van Wiechen  m024_words2_can/_notseen, m024_bodyparts_can/_notseen,
+#                m024_me_i_can/_notseen, m024_pictures,
+#                m036_words3_can/_notseen, m036_intelligible_familiar_can/_notseen,
+#                m045_questions_can/_notseen, m045_intelligible,
+#                m045_questions2_can/_notseen, m<age>_language_delay
+#   SDQ          m<age>_sdq11                        m045 m060 m120
+#                m<age>_sdq (total score)            m060 m120
+#   Visus        m<age>_visus                        m036 m045
 #   Per age      pc4_m<age>, pc3_m<age>, org_m<age>: GBA postcode and
 #                organisation of the contact closest to the nominal age
 #
@@ -87,7 +87,7 @@ check_keys_jgz(cohort_dat, c("RINPERSOONS", "RINPERSOON"), "03 outcomes")
 
 
 # ---- Overview: children and share per outcome ----------------------------------------------
-y_cols <- grep("^y_m[0-9]+_", names(cohort_dat), value = TRUE)
+y_cols <- grep("^m[0-9]{3}_", names(cohort_dat), value = TRUE)
 overview <- data.frame(
   outcome  = y_cols,
   children = vapply(y_cols, function(v) sum(!is.na(cohort_dat[[v]])), numeric(1)),

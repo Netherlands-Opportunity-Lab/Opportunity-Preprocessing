@@ -3,7 +3,7 @@
 # Each function takes the contact-moment rows of the JGZ cohort (the cm_<visit>
 # files of 01c, bound together: one row per child x age in days, with `cm`,
 # `leeftijd`, `sex`, `pc3`, `pc4`, `org` and the measurements) and returns one
-# row per child with the outcome columns y_m<age>_<outcome>. Settings come
+# row per child with the outcome columns m<age>_<outcome>. Settings come
 # from config/jgz.yml (data_preparation). Written for R 3.6.2 / dplyr 1.0.2
 # and later (see src/jgz/jgz_helpers.R).
 #
@@ -65,8 +65,8 @@ age_geography <- function(rows, age_cms, target_days) {
 
 # ---- BMI ----------------------------------------------------------------------------------
 
-#' y_m<age>_bmi, y_m<age>_bmi_p90 (BMI above the 90th percentile) and
-#' y_m<age>_bmi_p10 (below the 10th percentile) per age.
+#' m<age>_bmi, m<age>_bmi_p90 (BMI above the 90th percentile) and
+#' m<age>_bmi_p10 (below the 10th percentile) per age.
 #' Non-finite BMI (Inf / NaN, from a length of 0 in 01c) is set to missing
 #' before a measurement is picked, so a child falls back to its next-closest
 #' valid measurement in the window and mean/sd for the z-score stay finite.
@@ -97,7 +97,7 @@ bmi_outcomes <- function(rows, ages, target_days, z_max = 5, by_sex = TRUE) {
                       bmi_p90 = as.integer(d$value > p90),
                       bmi_p10 = as.integer(d$value < p10),
                       stringsAsFactors = FALSE)
-    names(res)[-(1:2)] <- paste0("y_", age, "_", c("bmi", "bmi_p90", "bmi_p10"))
+    names(res)[-(1:2)] <- paste0(age, "_", c("bmi", "bmi_p90", "bmi_p10"))
     res
   })
   join_children(out)
@@ -114,12 +114,12 @@ wiechen_code <- function(x) {
   unname(c("1" = "+", "2" = "-", "3" = "M", "+" = "+", "-" = "-", "M" = "M")[x])
 }
 
-#' Per age and item: y_m<age>_<item>_can (+ or M) and y_m<age>_<item>_notseen
-#' (- or M); for items in `no_m`: y_m<age>_<item> (+). Plus
-#' y_m<age>_language_delay = at least one of the core items of that age scored
+#' Per age and item: m<age>_<item>_can (+ or M) and m<age>_<item>_notseen
+#' (- or M); for items in `no_m`: m<age>_<item> (+). Plus
+#' m<age>_language_delay = at least one of the core items of that age scored
 #' - (M, reported only by the parent, is not a delay).
 #' @param items named list per age: outcome name -> raw variable, e.g.
-#'   list(m24 = list(words2 = "zin2w", bodyparts = "pop6"))
+#'   list(m024 = list(words2 = "zin2w", bodyparts = "pop6"))
 #' @param delay_items named list per age: the core items (outcome names) that
 #'   define language_delay; NULL = all items of that age
 #' @param delay_complete TRUE: language_delay only for children with ALL core
@@ -137,10 +137,10 @@ wiechen_outcomes <- function(rows, ages, items, target_days, no_m = character(0)
       d <- closest_measurement(r, "code", ages[[age]], target_days[[age]])
       res <- d[, KEYS_JGZ]
       if (item %in% no_m) {
-        res[[paste0("y_", age, "_", item)]] <- as.integer(d$value == "+")
+        res[[paste0(age, "_", item)]] <- as.integer(d$value == "+")
       } else {
-        res[[paste0("y_", age, "_", item, "_can")]]     <- as.integer(d$value %in% c("+", "M"))
-        res[[paste0("y_", age, "_", item, "_notseen")]] <- as.integer(d$value %in% c("-", "M"))
+        res[[paste0(age, "_", item, "_can")]]     <- as.integer(d$value %in% c("+", "M"))
+        res[[paste0(age, "_", item, "_notseen")]] <- as.integer(d$value %in% c("-", "M"))
       }
       res[[paste0(".min_", item)]] <- as.integer(d$value == "-")
       res
@@ -156,7 +156,7 @@ wiechen_outcomes <- function(rows, ages, items, target_days, no_m = character(0)
     m <- as.matrix(res[, paste0(".min_", core), drop = FALSE])
     n_scored <- rowSums(!is.na(m))
     enough <- if (isTRUE(delay_complete)) n_scored == length(core) else n_scored > 0
-    res[[paste0("y_", age, "_language_delay")]] <-
+    res[[paste0(age, "_language_delay")]] <-
       ifelse(enough, as.integer(rowSums(m == 1, na.rm = TRUE) > 0), NA_integer_)
     res[, setdiff(names(res), min_cols)]
   })
@@ -166,8 +166,8 @@ wiechen_outcomes <- function(rows, ages, items, target_days, no_m = character(0)
 
 # ---- SDQ ----------------------------------------------------------------------------------------
 
-#' y_m<age>_sdq<cutoff> = SDQ total score >= cutoff; for the ages in
-#' `score_ages` also y_m<age>_sdq = the total score itself (same measurement),
+#' m<age>_sdq<cutoff> = SDQ total score >= cutoff; for the ages in
+#' `score_ages` also m<age>_sdq = the total score itself (same measurement),
 #' for means. Scores above `max_score` (impossible; the range is 0-40) are
 #' treated as missing before choosing the measurement.
 sdq_outcomes <- function(rows, ages, target_days, cutoff = 11, max_score = 40,
@@ -180,8 +180,8 @@ sdq_outcomes <- function(rows, ages, target_days, cutoff = 11, max_score = 40,
   out <- lapply(names(ages), function(age) {
     d <- closest_measurement(r, "sdq", ages[[age]], target_days[[age]])
     res <- d[, KEYS_JGZ]
-    res[[paste0("y_", age, "_sdq", cutoff)]] <- as.integer(d$value >= cutoff)
-    if (age %in% score_ages) res[[paste0("y_", age, "_sdq")]] <- d$value
+    res[[paste0(age, "_sdq", cutoff)]] <- as.integer(d$value >= cutoff)
+    if (age %in% score_ages) res[[paste0(age, "_sdq")]] <- d$value
     res
   })
   join_children(out)
@@ -190,7 +190,7 @@ sdq_outcomes <- function(rows, ages, target_days, cutoff = 11, max_score = 40,
 
 # ---- Visus ---------------------------------------------------------------------------------------
 
-#' y_m<age>_visus = 1 when the conclusion of the vision test (visus_c) is in
+#' m<age>_visus = 1 when the conclusion of the vision test (visus_c) is in
 #' `abnormal`, 0 when it is in `normal`, missing otherwise. Codes are compared
 #' as lower-case text, so both the code ("3") and the label ("onvoldoende") work.
 visus_outcomes <- function(rows, ages, target_days, abnormal = c("3", "onvoldoende"),
@@ -201,7 +201,7 @@ visus_outcomes <- function(rows, ages, target_days, abnormal = c("3", "onvoldoen
   out <- lapply(names(ages), function(age) {
     d <- closest_measurement(r, "visus", ages[[age]], target_days[[age]])
     res <- d[, KEYS_JGZ]
-    res[[paste0("y_", age, "_visus")]] <- d$value
+    res[[paste0(age, "_visus")]] <- d$value
     res
   })
   join_children(out)
