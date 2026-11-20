@@ -15,6 +15,10 @@ default:
     postcode_target_date: "31/12/2025"
     # Neighbourhood geo link to homes will be considered on this target date
     gwb_target_date: "31/12/2025"
+    # Also add the wijk of these years as neighborhood_code_<year> (e.g. for the
+    # intragenerational results on the 2022 wijk indeling, neighborhood_year in
+    # its config). Only adds columns; leave empty for none.
+    extra_gwb_years: [2022]
     # Corop geo link to homes will be considered on this target date
     corop_target_date: "31/12/2025"
 

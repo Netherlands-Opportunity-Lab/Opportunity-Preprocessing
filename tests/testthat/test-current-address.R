@@ -34,3 +34,45 @@ test_that("the outcome blocks in the configs exist in the outcomes script", {
     if (!is.null(b)) expect_true(all(b %in% blocks), info = f)
   }
 })
+
+test_that("add_current_regions adds the wijk of extra_gwb_years without changing the regions", {
+  source(file.path(root, "src", "lib", "P_2_1_checks.R"), local = TRUE)
+  ymd8 <- function(x) as.character(x)
+  # three people, each with one address at age 35; object 3 has no 2022 wijk ("----")
+  cohort <- data.frame(RINPERSOONS = "R", RINPERSOON = c("1", "2", "3"),
+                       birthdate = as.Date(c("1985-06-01", "1986-06-01", "1987-06-01")))
+  fake <- list(
+    gbaao = data.frame(RINPERSOONS = "R", RINPERSOON = c("1", "2", "3"),
+                       SOORTOBJECTNUMMER = "A", RINOBJECTNUMMER = c("o1", "o2", "o3"),
+                       GBADATUMAANVANGADRESHOUDING = "20000101", GBADATUMEINDEADRESHOUDING = "20991231"),
+    postcode = data.frame(SOORTOBJECTNUMMER = "A", RINOBJECTNUMMER = c("o1", "o2", "o3"),
+                          POSTCODENUM = c("1011", "1012", "1381"),
+                          DATUMAANVPOSTCODENUMADRES = "20000101", DATUMEINDPOSTCODENUMADRES = "20991231"),
+    vslgwb = data.frame(SOORTOBJECTNUMMER = "A", RINOBJECTNUMMER = c("o1", "o2", "o3"),
+                        gem2025 = c("0363", "0363", "0363"), wc2025 = c("0363AA", "0363AB", "0363TB"),
+                        gem2022 = c("0363", "0363", "0457"), wc2022 = c("036300", "036300", "----"))
+  )
+  read_cbs <- function(path, ...) fake[[path]]
+  read_excel <- function(...) data.frame(`gemeenten|Code` = "0363", `COROP-gebieden|Code` = "CR23",
+                                         check.names = FALSE)
+  read_xlsx <- function(...) data.frame(neighborhood_code = c("WK0363AA", "WK0363AB", "WK0363TB"),
+                                        neighborhood_name = c("a", "b", "Weesp"),
+                                        stadsdeel_name = c("Centrum", "Centrum", "Weesp"),
+                                        gebied_name = c("g1", "g1", "Weesp"))
+  # the RA haven/forcats accept levels = "values" on plain columns; newer versions do not
+  as_factor <- function(x, ...) if (is.data.frame(x)) x else factor(x)
+  environment(add_current_regions) <- environment()
+  loc <- list(data_folder = "", gbaao_data = "gbaao", postcode_data = "postcode",
+              vslgwb_data = "vslgwb", corop_data = "corop", amsterdam_areas = "ams")
+  cfg <- list(postcode_target_date = "31/12/2025", gwb_target_date = "31/12/2025",
+              corop_target_date = "31/12/2025", amsterdam_metropolitan_area = "0363")
+  file.path <- function(...) paste0(...)
+
+  without <- suppressMessages(add_current_regions(cohort, 35, cfg, loc))
+  with <- suppressMessages(add_current_regions(cohort, 35, c(cfg, list(extra_gwb_years = 2022)), loc))
+
+  expect_false("neighborhood_code_2022" %in% names(without))
+  expect_equal(with$neighborhood_code_2022, c("036300", "036300", NA))
+  expect_equal(as.character(with$neighborhood_code), c("0363AA", "0363AB", "0363TB"))
+  expect_equal(with[setdiff(names(with), "neighborhood_code_2022")], without)
+})

@@ -25,7 +25,7 @@ library(readxl)
 # cohort_dat: one row per person, with RINPERSOONS, RINPERSOON and birthdate
 # age:        the age at which the address is taken
 # cfg, loc:   the sample's config (postcode/gwb/corop target dates,
-#             amsterdam_metropolitan_area; data_folder, gbaao_data, postcode_data,
+#             amsterdam_metropolitan_area, optional extra_gwb_years; data_folder, gbaao_data, postcode_data,
 #             vslgwb_data, corop_data, amsterdam_areas)
 # People without an address on that date, or whose address has no postcode or
 # municipality on the target dates, are dropped (inner joins).
@@ -87,14 +87,21 @@ add_current_regions <- function(cohort_dat, age, cfg, loc) {
 
   # municipality and neighbourhood on the target date
   gwb_year <- year(dmy(cfg$gwb_target_date))
+  # optionally also the wijk of other years (config: extra_gwb_years, e.g. [2022]):
+  # extra columns neighborhood_code_<year>, NA where VSLGWB has "----". They only
+  # add columns: the regions used (neighborhood_code etc.) stay those of gwb_year.
+  ex <- cfg$extra_gwb_years
+  extra_cols <- if (length(ex) > 0) setNames(paste0("wc", ex), paste0("neighborhood_code_", ex)) else character(0)
   vslgwb_tab <- read_cbs(file.path(loc$data_folder, loc$vslgwb_data),
                          filter_in = list(RINOBJECTNUMMER = cohort_dat$current_home)) %>%
     mutate(SOORTOBJECTNUMMER = as_factor(SOORTOBJECTNUMMER, levels = "values")) %>%
     select("type_current_home"         = "SOORTOBJECTNUMMER",
            "current_home"              = "RINOBJECTNUMMER",
            "municipality_code_current" = paste0("gem", gwb_year),
-           "neighborhood_code_current" = paste0("wc", gwb_year)) %>%
+           "neighborhood_code_current" = paste0("wc", gwb_year),
+           all_of(extra_cols)) %>%
     mutate(municipality_code_current = ifelse(municipality_code_current == "----", NA, municipality_code_current)) %>%
+    mutate(across(all_of(names(extra_cols)), ~ na_if(as.character(.x), "----"))) %>%
     filter(!is.na(municipality_code_current))
 
   cohort_dat <- checked_join(cohort_dat, vslgwb_tab, type = "inner",
