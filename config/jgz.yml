@@ -38,15 +38,33 @@ default:
     # --- 02 predictors: src/newborns/02_predictors_newborns (shared) ------------
     # The same predictor step as the newborn cohorts (decided 10-11-2026, so
     # the JGZ kloof uses the same x-axis as the other products): parental
-    # income = the mother's household income in the year before birth and the
-    # year of birth, deflated to cpi_base_year and ranked WITHIN BIRTH YEAR
-    # (income_parents_perc); parental wealth in the birth year; migration
-    # background (third generation via the mother); household type at
-    # childhood_home_age (number of parents); parents' education.
-    # Income years must cover (first birth year - 1) to (last birth year).
+    # income = the mother's household income; parental wealth in the birth
+    # year; migration background (third generation via the mother); household
+    # type at childhood_home_age (number of parents); parents' education.
+    #
+    # Parental income (Bastian, 20-11-2026): averaged over 5 years, each year
+    # deflated to cpi_base_year BEFORE averaging, and ranked against ALL
+    # children in NL born in the same year (not only the JGZ children), so
+    # "Low" means the same as nationally.
+    #   income_year_offsets: years relative to the birth year that are averaged.
+    #     -1..3 = from the year before birth to the year the child turns 3, i.e.
+    #     around the core JGZ ages (2-4 years), and the same window for every
+    #     outcome age, so gradients can be compared across ages. Bastian's note
+    #     in the living calendar reads "5 years up to the year the child reaches
+    #     the outcome age"; one window for all ages is Nils's choice, to confirm
+    #     with Bastian. (Newborns: c(-1, 0), the default.)
+    #   income_min_years: children with fewer known income years get no income.
+    #   income_rank_population: "national" = rank within birth year among all
+    #     children in GBAPERSOONTAB with a known mother in KINDOUDERTAB (same rule
+    #     as 01d); "cohort" = among the JGZ children only (the old behaviour).
+    # Income years must cover (first birth year - 1) to (last birth year + 3).
+    # Wealth is still ranked within the cohort (not part of the 20-11 decision).
     cpi_base_year: 2024
+    income_year_offsets: [-1, 0, 1, 2, 3]
+    income_min_years: 1
+    income_rank_population: "national"
     parent_income_year_min: 2004
-    parent_income_year_max: 2018
+    parent_income_year_max: 2021
     parent_wealth_year_min: 2005
     parent_wealth_year_max: 2018
     # age (years) at which household type and parents' education are taken
@@ -181,6 +199,8 @@ default:
     gba_adres_file:   "Bevolking/GBAADRESOBJECTBUS/geconverteerde data/GBAADRESOBJECT2024BUSV1.db"
     vslpostcode_file: "BouwenWonen/VSLPOSTCODEBUS/geconverteerde data/VSLPOSTCODEBUSV2026031.db"
     kindouder_file:   "Bevolking/KINDOUDERTAB/geconverteerde data/KINDOUDER2025TABV2.db"
+    # (step 02 reads kindouder_file too, for the national income reference;
+    # a cohort without kindouder_file would set kindouder_data instead)
     # 02 (src/newborns/02_predictors_newborns, names as in the newborn configs)
     gba_data:       "Bevolking/GBAPERSOONTAB/2024/geconverteerde data/GBAPERSOON2024TABV3.db"
     household_data: "Bevolking/GBAHUISHOUDENSBUS/Geconverteerde bestanden/GBAHUISHOUDENS2024BUSV1.db"

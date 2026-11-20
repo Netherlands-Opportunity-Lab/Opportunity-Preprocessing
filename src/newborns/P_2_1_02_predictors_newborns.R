@@ -2,6 +2,13 @@
 #
 # 2. Predictor creation.
 #    - Adding parent income and income percentile to the cohort.
+#      Income = the mother's household income, deflated to cpi_base_year per
+#      year and then averaged over the years income_year_offsets around the
+#      birth year (default c(-1, 0): the year before birth and the birth year).
+#      The percentile is ranked within birth year among the cohort itself
+#      (income_rank_population: "cohort", default) or among all children in NL
+#      born that year ("national", used by JGZ since 20-11-2026). Functions in
+#      src/lib/P_2_1_parent_income.R.
 #    - Adding migration background information to the cohort.
 #    - Writing `temp/<cohort>/02_predictor.rds`
 #
@@ -28,6 +35,46 @@ cohort_dat <- read_rds(file.path(loc$temp_folder, "01_cohort.rds")) %>%
   mutate(birth_year = year(birthdate))
 
 sample_size <- read_rds(file.path(loc$temp_folder, "01_sample_size.rds"))
+
+source_versioned("src/lib", "parent_income")
+
+# income window and rank population (defaults = the newborn definition)
+income_offsets <- if (is.null(cfg$income_year_offsets)) c(-1L, 0L) else
+  as.integer(unlist(cfg$income_year_offsets))
+income_min_years <- if (is.null(cfg$income_min_years)) 1L else as.integer(cfg$income_min_years)
+income_rank_population <- if (is.null(cfg$income_rank_population)) "cohort" else cfg$income_rank_population
+if (!income_rank_population %in% c("cohort", "national")) {
+  stop("income_rank_population must be \"cohort\" or \"national\", not \"", income_rank_population, "\".")
+}
+message(sprintf("Parental income: years %s relative to birth (at least %d with an income), ranked within birth year among the %s.",
+                paste(income_offsets, collapse = ", "), income_min_years,
+                if (income_rank_population == "national") "children in NL born that year" else "cohort"))
+
+# the configured income years must cover every child's window
+needed_income_years <- seq(min(cohort_dat$birth_year) + min(income_offsets),
+                           max(cohort_dat$birth_year) + max(income_offsets))
+missing_income_years <- setdiff(needed_income_years,
+                                seq(as.integer(cfg$parent_income_year_min),
+                                    as.integer(cfg$parent_income_year_max)))
+if (length(missing_income_years) > 0) {
+  stop("parent_income_year_min/max in the config do not cover income years: ",
+       paste(missing_income_years, collapse = ", "))
+}
+rm(needed_income_years, missing_income_years)
+
+# national reference population: all children in NL born in the cohort's birth
+# years with a known mother (same rule as the JGZ cohort, 01d). Their mothers'
+# household income is computed exactly as for the cohort below.
+income_reference <- NULL
+if (income_rank_population == "national") {
+  kindouder_path <- if (!is.null(loc$kindouder_data)) loc$kindouder_data else loc$kindouder_file
+  if (is.null(kindouder_path)) stop("income_rank_population = national needs kindouder_data in file_locations.")
+  income_reference <- reference_children(
+    gba_path       = file.path(loc$data_folder, loc$gba_data),
+    kindouder_path = file.path(loc$data_folder, kindouder_path),
+    birth_years    = unique(cohort_dat$birth_year))
+  print(table(`reference children per birth year` = income_reference$birth_year))
+}
 
 
 
@@ -76,7 +123,8 @@ get_inpa_filename <- function(year) {
 
 # LINK MOTHER RINPERSOON TO HOUSEHOLD RINPERSOON
 
-mothers <- c(cohort_dat$CBKSoortNr_Moeder, cohort_dat$Rinpersoon_Moeder)
+mothers <- unique(c(cohort_dat$CBKSoortNr_Moeder, cohort_dat$Rinpersoon_Moeder,
+                    income_reference$Rinpersoon_Moeder))
 mothers_rinpersoon <- tibble(RINPERSOONS = factor(), RINPERSOON = character(), 
                              RINPERSOONSHKW = factor(), RINPERSOONHKW = character(),
                              year = double())
@@ -200,68 +248,49 @@ income_household <-
 rm(mothers_rinpersoon)
 
 
-# the income window per child is the year before birth and the year of birth,
-# so the configured income years must cover (min birth year - 1) to (max birth year)
-needed_income_years <- seq(min(cohort_dat$birth_year) - 1, max(cohort_dat$birth_year))
-missing_income_years <- setdiff(needed_income_years,
-                                seq(as.integer(cfg$parent_income_year_min),
-                                    as.integer(cfg$parent_income_year_max)))
-if (length(missing_income_years) > 0) {
-  stop("parent_income_year_min/max in the config do not cover income years: ",
-       paste(missing_income_years, collapse = ", "))
+# mean per CHILD over its own window (not per mother over the whole income
+# range, since a mother can have several children born in different years);
+# negative means count as unknown and those children are dropped
+n_before_income <- nrow(cohort_dat)
+cohort_dat <- child_income_window(cohort_dat, income_household,
+                                  offsets = income_offsets, min_years = income_min_years)
+message(sprintf("Children with a parental income: %s of %s",
+                format(nrow(cohort_dat), big.mark = ","), format(n_before_income, big.mark = ",")))
+
+# table of the number of years the mean income is based on
+print(table(`income years` = cohort_dat$household_income_n))
+
+if (!is.null(income_reference)) {
+  income_reference <- child_income_window(income_reference, income_household,
+                                          offsets = income_offsets, min_years = income_min_years)
+  message(sprintf("Reference children with a parental income: %s",
+                  format(nrow(income_reference), big.mark = ",")))
 }
 
+# percentile within birth year, among the cohort or the national reference
+cohort_dat <- income_percentile(cohort_dat, reference = income_reference,
+                                value = "household_income") %>%
+  rename(income_household_perc = household_income_perc) %>%
+  select(-household_income_n)
 
-# compute mean per CHILD: mother's household income in the year before birth
-# and the year of birth (not per mother over the whole income range, since a
-# mother can have several children in the cohort, born in different years)
-child_income <-
-  cohort_dat %>%
-  mutate(child_row = row_number()) %>%
-  select(child_row, CBKSoortNr_Moeder, Rinpersoon_Moeder, birth_year) %>%
-  crossing(income_offset = c(-1, 0)) %>%
-  mutate(year = birth_year + income_offset) %>%
-  inner_join(income_household,
-             by = c("CBKSoortNr_Moeder" = "RINPERSOONS",
-                    "Rinpersoon_Moeder" = "RINPERSOON",
-                    "year")) %>%
-  group_by(child_row) %>%
-  summarize(household_income_n = sum(!is.na(household_income)),
-            household_income   = mean(household_income, na.rm = TRUE)) %>%
-  # mean() of only NAs gives NaN, which is.na() also catches
-  filter(!is.na(household_income))
+if (!is.null(income_reference)) {
+  # where the cohort sits in the national distribution (internal check: with a
+  # national rank the cohort's quintiles need not hold 20% each)
+  print(round(prop.table(table(`national income quintile` =
+                                 cut(cohort_dat$income_household_perc, seq(0, 1, 0.2),
+                                     include.lowest = TRUE))), 3))
+  # internal summary of the reference distribution (not for export)
+  write_rds(income_reference %>%
+              group_by(birth_year) %>%
+              summarize(n = n(),
+                        p10 = quantile(household_income, 0.10), p25 = quantile(household_income, 0.25),
+                        p50 = quantile(household_income, 0.50), p75 = quantile(household_income, 0.75),
+                        p90 = quantile(household_income, 0.90), .groups = "drop"),
+            file.path(loc$temp_folder, "02_income_reference_summary.rds"))
+  sample_size <- sample_size %>% mutate(n_income_reference = nrow(income_reference))
+}
 
-# table of the number of years (1 or 2) the mean income is based on
-print(table(`income years` = child_income$household_income_n))
-
-
-cohort_dat <-
-  cohort_dat %>%
-  mutate(child_row = row_number()) %>%
-  inner_join(child_income, by = "child_row") %>%
-  select(-child_row)
-
-rm(income_household, child_income, needed_income_years, missing_income_years)
-
-
-# if household_income is negative then household_income is NA
-cohort_dat <- 
-  cohort_dat %>%
-  mutate(household_income = ifelse(household_income < 0, NA, household_income)) %>%
-  # remove income if household_income is NA 
-  filter(!is.na(household_income))
-
-
-# compute income transformations
-cohort_dat <- 
-  cohort_dat %>% 
-  group_by(birth_year) %>%
-  mutate(
-    income_household_rank = rank(household_income, ties.method = "average"),
-    income_household_perc = income_household_rank / max(income_household_rank)
-  ) %>%
-  select(-c(income_household_rank, household_income_n)) %>%
-  ungroup()
+rm(income_household, income_reference, n_before_income)
 
 
 # remove parents income and replace with household income
