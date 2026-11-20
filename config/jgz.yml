@@ -42,29 +42,38 @@ default:
     # year; migration background (third generation via the mother); household
     # type at childhood_home_age (number of parents); parents' education.
     #
-    # Parental income (Bastian, 20-11-2026): averaged over 5 years, each year
-    # deflated to cpi_base_year BEFORE averaging, and ranked against ALL
-    # children in NL born in the same year (not only the JGZ children), so
-    # "Low" means the same as nationally.
-    #   income_year_offsets: years relative to the birth year that are averaged.
-    #     -1..3 = from the year before birth to the year the child turns 3, i.e.
-    #     around the core JGZ ages (2-4 years), and the same window for every
-    #     outcome age, so gradients can be compared across ages. Bastian's note
-    #     in the living calendar reads "5 years up to the year the child reaches
-    #     the outcome age"; one window for all ages is Nils's choice, to confirm
-    #     with Bastian. (Newborns: c(-1, 0), the default.)
-    #   income_min_years: children with fewer known income years get no income.
-    #   income_rank_population: "national" = rank within birth year among all
-    #     children in GBAPERSOONTAB with a known mother in KINDOUDERTAB (same rule
-    #     as 01d); "cohort" = among the JGZ children only (the old behaviour).
-    # Income years must cover (first birth year - 1) to (last birth year + 3).
-    # Wealth is still ranked within the cohort (not part of the 20-11 decision).
+    # Parental income (Bastian, 20-11-2026, living calendar): "Inkomen ouders
+    # (gebruik heel Nederland): middel (zet jaarbedragen voorafgaand aan het
+    # middelen om in het prijspeil van het referentiejaar (in S_2 is dit 2024))
+    # over 5 jaar tot en met kalenderjaar waarin kind de uitkomstleeftijd heeft
+    # bereikt, geef rank binnen kinderen die in hetzelfde jaar de
+    # uitkomstleeftijd bereikten."
+    # So, for every outcome age a in income_outcome_ages (age in days from
+    # outcome_target_days):
+    #   Y_a = the calendar year in which the child reaches a;
+    #   income_parents_<a> = mean of the mother's household income over
+    #     Y_a - 4 .. Y_a (income_window_years = 5), each year converted to the
+    #     price level of the reference year (cpi_base_year = 2024) BEFORE
+    #     averaging; children with fewer than income_min_years known years get
+    #     no income at that age;
+    #   income_parents_perc_<a> = rank among ALL children in NL who reach a in
+    #     the same year Y_a (income_rank_population: national = everyone in
+    #     GBAPERSOONTAB with a known mother in KINDOUDERTAB, the rule of 01d).
+    # Only computed when Y_a - 4 .. Y_a lies within parent_income_year_min/max;
+    # otherwise NA at that age. Children without an income at any age are
+    # dropped. The analysis uses income_parents(_perc)_<a> for the outcomes
+    # y_<a>_*. Wealth is still taken in the birth year and ranked within the
+    # cohort (not part of the 20-11 decision).
     cpi_base_year: 2024
-    income_year_offsets: [-1, 0, 1, 2, 3]
+    income_outcome_ages: ["m1", "m2", "m3", "m4", "m6", "m9", "m11", "m14", "m18",
+                          "m24", "m36", "m45", "m60", "m120"]
+    income_window_years: 5
     income_min_years: 1
     income_rank_population: "national"
+    # JGZ registrations 2009-2018: windows from 2004 (a 10-year-old measured in
+    # 2009) to 2018
     parent_income_year_min: 2004
-    parent_income_year_max: 2021
+    parent_income_year_max: 2018
     parent_wealth_year_min: 2005
     parent_wealth_year_max: 2018
     # age (years) at which household type and parents' education are taken
@@ -218,7 +227,9 @@ default:
 
   final_checks:
     # Checked on output/jgz_cohort.rds at the end of the run (check_final_cohort())
-    expected_columns: ["income_parents_perc", "migration_background", "type_household", "parents_education",
+    expected_columns: ["income_parents_m24", "income_parents_perc_m24", "income_parents_perc_m45",
+                       "income_parents_perc_m120", "income_group_m24",
+                       "migration_background", "type_household", "parents_education",
                        "y_m24_bmi", "y_m24_bmi_p90", "y_m24_bmi_p10", "y_m36_bmi_p90", "y_m45_bmi_p90",
                        "y_m60_bmi_p90", "y_m120_bmi_p90",
                        "y_m1_bmi_p90", "y_m6_bmi_p90", "y_m18_bmi_p90",
